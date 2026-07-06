@@ -18,6 +18,7 @@ from app.services import (
     build_display_name,
     finalize_ready_plants,
     get_friend_growing_plant,
+    get_global_growth_window,
     get_growing_plant,
     get_or_create_user,
     get_ready_plants,
@@ -239,6 +240,11 @@ async def api_friend(
     if not plant:
         return {"plant": None}
     return {"plant": plant}
+
+
+@app.get("/api/global-stats")
+async def api_global_stats():
+    return await get_global_growth_window()
 
 
 @app.post("/api/water/{plant_id}")

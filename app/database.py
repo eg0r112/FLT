@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS plants (
 );
 CREATE INDEX IF NOT EXISTS idx_plants_user ON plants(user_id);
 CREATE INDEX IF NOT EXISTS idx_plants_status ON plants(status);
+CREATE INDEX IF NOT EXISTS idx_plants_ready_at ON plants(ready_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_one_growing ON plants(user_id) WHERE status = 'growing';
 
 CREATE TABLE IF NOT EXISTS waterings (

@@ -15,6 +15,7 @@
   let currentTab = "garden";
   let timerId = null;
   let selfWaterTimerId = null;
+  let globalStatsLoading = false;
 
   const TABS = ["garden", "plot", "friends", "shop", "profile"];
 
@@ -41,8 +42,57 @@
     { id: "bonus", icon: "💰", name: "Щедрый урожай", desc: "+20% монет за поливы друзей", price: 400 },
   ];
 
+  const RARITY_MARKET = {
+    common: { weight: 60, base: 18 },
+    uncommon: { weight: 25, base: 45 },
+    rare: { weight: 10, base: 120 },
+    epic: { weight: 4, base: 340 },
+    legendary: { weight: 1, base: 1200 },
+  };
+
+  const BACKGROUND_MARKET = {
+    1: { name: "Луг", weight: 22, mult: 1.0 },
+    2: { name: "Роса", weight: 18, mult: 1.08 },
+    3: { name: "Сад", weight: 15, mult: 1.15 },
+    4: { name: "Рассвет", weight: 11, mult: 1.28 },
+    5: { name: "Закат", weight: 10, mult: 1.42 },
+    6: { name: "Туман", weight: 8, mult: 1.6 },
+    7: { name: "Горы", weight: 6, mult: 1.9 },
+    8: { name: "Космос", weight: 4, mult: 2.4 },
+    9: { name: "Кристалл", weight: 3, mult: 3.0 },
+    10: { name: "Сияние", weight: 2, mult: 3.8 },
+  };
+
+  const GLOBAL_STATS_CACHE_KEY = "garden_global_stats_v1";
+
   function coinHtml(sm) {
     return `<span class="coin${sm ? " coin--sm" : ""}" aria-hidden="true"></span>`;
+  }
+
+  function formatNum(n) {
+    return new Intl.NumberFormat("ru-RU").format(Math.max(0, Math.round(n || 0)));
+  }
+
+  function getPlantPrice(plant) {
+    const rarity = RARITY_MARKET[plant?.rarity] || RARITY_MARKET.common;
+    const bg = BACKGROUND_MARKET[plant?.background_id] || BACKGROUND_MARKET[1];
+    const rarityScarcity = 60 / rarity.weight;
+    const bgScarcity = 22 / bg.weight;
+    const comboBoost = Math.pow(rarityScarcity * bgScarcity, 0.38);
+    return Math.round(rarity.base * bg.mult * comboBoost);
+  }
+
+  function getCollectionValue() {
+    return (state?.ready_plants || []).reduce((sum, plant) => sum + getPlantPrice(plant), 0);
+  }
+
+  function getGlobalDisplayCount() {
+    const g = state?.global_stats;
+    if (!g) return 0;
+    const now = Math.floor(Date.now() / 1000);
+    const span = Math.max(1, g.window_end - g.window_start);
+    const progress = Math.min(1, Math.max(0, (now - g.window_start) / span));
+    return Math.round(g.from_count + (g.to_count - g.from_count) * progress);
   }
 
   function toast(msg) {
@@ -223,12 +273,17 @@
     }
     const items = plants
       .map(
-        (p, i) => `
+        (p, i) => {
+      const bg = BACKGROUND_MARKET[p.background_id] || BACKGROUND_MARKET[1];
+      const price = getPlantPrice(p);
+      return `
       <div class="seed-card seed-card--${p.rarity}" style="animation-delay:${i * 0.05}s">
         <div class="seed-card__emoji">${RARITY_EMOJI[p.rarity] || "🌿"}</div>
         <div class="seed-card__tag tag-${p.rarity}">${RARITY_LABEL[p.rarity] || p.rarity}</div>
-        <div class="seed-card__bg">фон №${p.background_id}</div>
-      </div>`
+        <div class="seed-card__bg">${bg.name} · фон №${p.background_id}</div>
+        <div class="seed-card__bg">≈ ${formatNum(price)} ${coinHtml(true)}</div>
+      </div>`;
+    }
       )
       .join("");
     return `<div class="grid">${items}</div>`;
@@ -296,6 +351,8 @@
   }
 
   function renderGardenTab() {
+    const collectionValue = getCollectionValue();
+    const globalCount = getGlobalDisplayCount();
     let html = `<div class="page-head">🏡 Мой сад</div>`;
     if (state.user.is_new) {
       html += `
@@ -304,6 +361,24 @@
           <span>Бонус за вход уже у тебя на счету</span>
         </div>`;
     }
+    html += `
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-emoji">🌍</div>
+          <div class="stat-num" id="global-grown-count">${formatNum(globalCount)}</div>
+          <div class="stat-lbl">Выращено в мире</div>
+        </div>
+        <div class="stat">
+          <div class="stat-emoji">🌼</div>
+          <div class="stat-num">${formatNum(state.ready_plants.length)}</div>
+          <div class="stat-lbl">Твоих растений</div>
+        </div>
+        <div class="stat">
+          <div class="stat-emoji">💎</div>
+          <div class="stat-num">${formatNum(collectionValue)}</div>
+          <div class="stat-lbl">Цена коллекции</div>
+        </div>
+      </div>`;
     html += renderStatusCard();
     html += renderStats();
     html += `<div class="section-title">🏆 Коллекция</div>`;
@@ -350,6 +425,7 @@
     const initial = (u.display_name || "?").charAt(0).toUpperCase();
     const handle = u.username ? `@${u.username}` : "без username";
     const link = state.referral_link || "";
+    const collectionValue = getCollectionValue();
     return `
       <div class="page-head">👤 Профиль</div>
       <div class="profile-hero">
@@ -374,6 +450,10 @@
         <div class="profile-stat">
           <div class="profile-stat-num">${u.ref_code}</div>
           <div class="profile-stat-lbl">Код сада</div>
+        </div>
+        <div class="profile-stat">
+          <div class="profile-stat-num">${formatNum(collectionValue)}</div>
+          <div class="profile-stat-lbl">Цена коллекции</div>
         </div>
       </div>
       <button class="btn btn-share" id="copy-ref" style="width:100%">
@@ -506,7 +586,6 @@
       state.self_water = { can_water: false, wait_seconds: state.config.self_water_cooldown };
       toast(`Полито! −${res.reduction_percent}% времени 💧`);
       render();
-      await refresh();
     } catch (e) {
       const msg =
         e.detail?.error === "cooldown"
@@ -602,11 +681,45 @@
   }
 
   async function refresh() {
+    const globalStats = state?.global_stats || readGlobalStatsCache();
     const ref = parseRef();
     const q = ref ? `?ref=${ref}` : "";
     state = await api("GET", "/api/me" + q);
+    if (globalStats) state.global_stats = globalStats;
     updateHeader();
     render();
+  }
+
+  function readGlobalStatsCache() {
+    try {
+      const raw = localStorage.getItem(GLOBAL_STATS_CACHE_KEY);
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      const now = Math.floor(Date.now() / 1000);
+      if (!data?.window_end || data.window_end <= now) return null;
+      return data;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function ensureGlobalStats() {
+    if (globalStatsLoading) return;
+    globalStatsLoading = true;
+    try {
+    const cached = readGlobalStatsCache();
+    if (cached) {
+      state.global_stats = cached;
+      return;
+    }
+    const data = await api("GET", "/api/global-stats");
+    state.global_stats = data;
+    try {
+      localStorage.setItem(GLOBAL_STATS_CACHE_KEY, JSON.stringify(data));
+    } catch (_) {}
+    } finally {
+      globalStatsLoading = false;
+    }
   }
 
   tabbar.addEventListener("click", (e) => {
@@ -624,7 +737,11 @@
     try {
       const ref = parseRef();
       const q = ref ? `?ref=${ref}` : "";
-      state = await api("GET", "/api/me" + q);
+      const [me] = await Promise.all([
+        api("GET", "/api/me" + q),
+      ]);
+      state = me;
+      await ensureGlobalStats();
       updateHeader();
       loader.remove();
       tabbar.hidden = false;
@@ -683,6 +800,16 @@
 
     setTimeout(fly, 20000 + Math.random() * 25000);
   }
+
+  setInterval(() => {
+    if (state?.global_stats?.window_end && state.global_stats.window_end <= Math.floor(Date.now() / 1000)) {
+      ensureGlobalStats();
+    }
+    const counter = document.getElementById("global-grown-count");
+    if (counter && state?.global_stats) {
+      counter.textContent = formatNum(getGlobalDisplayCount());
+    }
+  }, 1000);
 
   init();
   startAdPlane();

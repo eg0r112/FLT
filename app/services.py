@@ -4,12 +4,20 @@ import json
 import random
 import time
 import urllib.parse
+from functools import lru_cache
 from typing import Any
 
 from app.config import get_settings
 from app.database import get_db
 
 NOW = lambda: int(time.time())
+
+
+@lru_cache(maxsize=1)
+def _rarity_tables() -> tuple[tuple[str, ...], tuple[int, ...]]:
+    weights = get_settings().parsed_rarity_weights()
+    names, values = zip(*weights)
+    return names, values
 
 
 def validate_init_data(init_data: str, bot_token: str) -> dict[str, Any] | None:
@@ -36,10 +44,8 @@ def validate_init_data(init_data: str, bot_token: str) -> dict[str, Any] | None:
 
 
 def roll_rarity() -> str:
-    settings = get_settings()
-    weights = settings.parsed_rarity_weights()
-    names, w = zip(*weights)
-    return random.choices(names, weights=w, k=1)[0]
+    names, weights = _rarity_tables()
+    return random.choices(names, weights=weights, k=1)[0]
 
 
 def roll_background() -> int:
@@ -75,6 +81,15 @@ async def sync_user_profile(
     display_name: str,
 ) -> None:
     db = await get_db()
+    cur = await db.execute(
+        "SELECT username, display_name FROM users WHERE telegram_id = ?",
+        (telegram_id,),
+    )
+    row = await cur.fetchone()
+    if not row:
+        return
+    if row["username"] == username and row["display_name"] == display_name:
+        return
     await db.execute(
         "UPDATE users SET username = ?, display_name = ? WHERE telegram_id = ?",
         (username, display_name, telegram_id),
@@ -329,11 +344,37 @@ async def water_plant(
 async def get_user_stats(user_id: int) -> dict:
     db = await get_db()
     cur = await db.execute(
-        "SELECT COUNT(*) as cnt FROM users WHERE referrer_id = ?", (user_id,)
+        """
+        SELECT
+            (SELECT COUNT(*) FROM users WHERE referrer_id = ?) AS referrals,
+            (SELECT COUNT(*) FROM waterings WHERE waterer_id = ?) AS waterings
+        """,
+        (user_id, user_id),
     )
-    refs = (await cur.fetchone())["cnt"]
+    row = await cur.fetchone()
+    return {"referrals": row["referrals"], "waterings": row["waterings"]}
+
+
+async def get_global_growth_window(now_ts: int | None = None) -> dict:
+    """Return one-hour delayed totals for smooth local interpolation on the client."""
+    now_ts = now_ts or NOW()
+    current_hour = now_ts - (now_ts % 3600)
+    previous_hour = current_hour - 3600
+    next_hour = current_hour + 3600
+
+    db = await get_db()
     cur = await db.execute(
-        "SELECT COUNT(*) as cnt FROM waterings WHERE waterer_id = ?", (user_id,)
+        """
+        SELECT
+            (SELECT COUNT(*) FROM plants WHERE ready_at < ?) AS from_count,
+            (SELECT COUNT(*) FROM plants WHERE ready_at < ?) AS to_count
+        """,
+        (previous_hour, current_hour),
     )
-    waters = (await cur.fetchone())["cnt"]
-    return {"referrals": refs, "waterings": waters}
+    row = await cur.fetchone()
+    return {
+        "window_start": current_hour,
+        "window_end": next_hour,
+        "from_count": row["from_count"],
+        "to_count": row["to_count"],
+    }
