@@ -1,17 +1,13 @@
-"""Собирает static/ в docs/ для GitHub Pages."""
+"""Собирает static/ для GitHub Pages (корень репо + docs/)."""
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 STATIC = ROOT / "static"
-DOCS = ROOT / "docs"
-API_URL = "https://YOUR-PROJECT.amvera.app"  # URL бэкенда на Amvera (GitHub → Settings → Variables → API_URL)
-WEBAPP_URL = "https://eg0r112.github.io/FLT"
+API_URL = "https://YOUR-PROJECT.amvera.app"
+OUT_DIRS = [ROOT, ROOT / "docs"]
 
 
-def main() -> None:
-    DOCS.mkdir(exist_ok=True)
-    (DOCS / ".nojekyll").touch()
-
+def build_html() -> str:
     html = (STATIC / "index.html").read_text(encoding="utf-8")
     html = html.replace('href="/static/style.css"', 'href="style.css"')
     html = html.replace('src="/static/app.js"', 'src="app.js"')
@@ -21,15 +17,22 @@ def main() -> None:
             f'<head>\n  <meta name="api-url" content="{API_URL}">',
             1,
         )
+    return html
 
-    (DOCS / "index.html").write_text(html, encoding="utf-8")
-    (DOCS / "style.css").write_text(
-        (STATIC / "style.css").read_text(encoding="utf-8"), encoding="utf-8"
-    )
-    (DOCS / "app.js").write_text(
-        (STATIC / "app.js").read_text(encoding="utf-8"), encoding="utf-8"
-    )
-    print(f"OK: docs/ готов. API_URL={API_URL}")
+
+def main() -> None:
+    html = build_html()
+    css = (STATIC / "style.css").read_text(encoding="utf-8")
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+
+    for out in OUT_DIRS:
+        out.mkdir(exist_ok=True)
+        (out / ".nojekyll").touch()
+        (out / "index.html").write_text(html, encoding="utf-8")
+        (out / "style.css").write_text(css, encoding="utf-8")
+        (out / "app.js").write_text(js, encoding="utf-8")
+
+    print(f"OK: GitHub Pages готов. API_URL={API_URL}")
 
 
 if __name__ == "__main__":
