@@ -19,14 +19,13 @@ def webapp_keyboard(url: str, ref: str | None = None) -> InlineKeyboardMarkup:
 
 
 def create_bot(settings: Settings) -> Bot:
-    from aiogram.client.session.aiohttp import AiohttpSession
-
-    kwargs: dict = {"timeout": 120.0}
     if settings.telegram_proxy:
-        kwargs["proxy"] = settings.telegram_proxy
+        from aiogram.client.session.aiohttp import AiohttpSession
+
+        session = AiohttpSession(proxy=settings.telegram_proxy)
         logger.info("Using Telegram proxy: %s", settings.telegram_proxy)
-    session = AiohttpSession(**kwargs)
-    return Bot(token=settings.bot_token, session=session)
+        return Bot(token=settings.bot_token, session=session)
+    return Bot(token=settings.bot_token)
 
 
 def register_handlers(dp: Dispatcher, settings: Settings) -> None:
