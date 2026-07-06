@@ -1,7 +1,21 @@
+# Python
 .venv/
+venv/
+env/
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+
+# Секреты и данные
 .env
 data/
 *.db
+
+# Не нужно на Amvera (фронт на GitHub Pages)
+docs/
+.github/
+
+# OS / IDE
 .DS_Store
+.idea/
+.vscode/
