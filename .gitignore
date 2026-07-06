@@ -11,10 +11,6 @@ __pycache__/
 data/
 *.db
 
-# Не нужно на Amvera (фронт на GitHub Pages)
-docs/
-.github/
-
 # OS / IDE
 .DS_Store
 .idea/
