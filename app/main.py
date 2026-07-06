@@ -75,14 +75,16 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    if _tg_bot and use_webhook(settings):
+    if _tg_bot:
         try:
-            await _tg_bot.delete_webhook()
+            await _tg_bot.session.close()
         except Exception:
             pass
-        await _tg_bot.session.close()
 
-    await close_db()
+    try:
+        await close_db()
+    except Exception:
+        pass
 
 
 app = FastAPI(title="Garden Mini App", lifespan=lifespan)
