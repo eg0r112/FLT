@@ -32,7 +32,7 @@ jobs:
           API_URL: ${{ vars.API_URL }}
         run: |
           if [ -n "$API_URL" ]; then
-            sed -i "s|https://YOUR-BACKEND.amvera.app|$API_URL|g" scripts/prepare_pages.py
+            sed -i "s|https://YOUR-PROJECT.amvera.app|$API_URL|g" scripts/prepare_pages.py
           fi
           python scripts/prepare_pages.py
 
