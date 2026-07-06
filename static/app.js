@@ -13,9 +13,10 @@
 
   let state = null;
   let currentTab = "garden";
-  let timerId = null;
-  let selfWaterTimerId = null;
+  let tickId = null;
   let globalStatsLoading = false;
+  let harvestModalOpen = false;
+  let refreshing = false;
 
   const TABS = ["garden", "plot", "friends", "shop", "profile"];
 
@@ -93,6 +94,37 @@
     const span = Math.max(1, g.window_end - g.window_start);
     const progress = Math.min(1, Math.max(0, (now - g.window_start) / span));
     return Math.round(g.from_count + (g.to_count - g.from_count) * progress);
+  }
+
+  function showHarvestModal(plant) {
+    if (!plant || harvestModalOpen) return;
+    harvestModalOpen = true;
+    const bg = BACKGROUND_MARKET[plant.background_id] || BACKGROUND_MARKET[1];
+    const price = getPlantPrice(plant);
+    const rarity = plant.rarity || "common";
+    const overlay = document.createElement("div");
+    overlay.className = "harvest-overlay";
+    overlay.innerHTML = `
+      <div class="harvest-modal" role="dialog" aria-modal="true">
+        <div class="harvest-modal__title">🎉 Растение выросло!</div>
+        <div class="harvest-modal__sub">Новый урожай в коллекции</div>
+        <div class="harvest-modal__plant seed-card--${rarity}">
+          <div class="harvest-modal__emoji">${RARITY_EMOJI[rarity] || "🌿"}</div>
+          <div class="harvest-modal__tag tag-${rarity}">${RARITY_LABEL[rarity] || rarity}</div>
+          <div class="harvest-modal__bg">${bg.name} · фон №${plant.background_id}</div>
+          <div class="harvest-modal__price">≈ ${formatNum(price)} ${coinHtml(true)}</div>
+        </div>
+        <button class="harvest-modal__btn" type="button">Ура! 🌼</button>
+      </div>`;
+    const close = () => {
+      harvestModalOpen = false;
+      overlay.remove();
+    };
+    overlay.querySelector(".harvest-modal__btn").addEventListener("click", close);
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) close();
+    });
+    document.body.appendChild(overlay);
   }
 
   function toast(msg) {
@@ -363,7 +395,7 @@
     }
     html += `
       <div class="stats">
-        <div class="stat">
+        <div class="stat stat--wide">
           <div class="stat-emoji">🌍</div>
           <div class="stat-num" id="global-grown-count">${formatNum(globalCount)}</div>
           <div class="stat-lbl">Выращено в мире</div>
@@ -520,10 +552,7 @@
     }
     main.innerHTML = html;
     bindEvents();
-    if (state.growing) {
-      startTimer();
-      if (currentTab === "plot") startSelfWaterTimer();
-    }
+    ensureTickLoop();
   }
 
   async function loadFriend(refCode) {
@@ -619,11 +648,25 @@
     }
   }
 
-  function startTimer() {
-    if (timerId) clearInterval(timerId);
-    if (!state?.growing) return;
+  function ensureTickLoop() {
+    if (tickId) return;
+    tickId = setInterval(onTick, 1000);
+  }
 
-    timerId = setInterval(() => {
+  function onTick() {
+    if (!state) return;
+
+    const now = Math.floor(Date.now() / 1000);
+    if (state.global_stats?.window_end && state.global_stats.window_end <= now) {
+      ensureGlobalStats();
+    }
+
+    if (currentTab === "garden" && state.global_stats) {
+      const counter = document.getElementById("global-grown-count");
+      if (counter) counter.textContent = formatNum(getGlobalDisplayCount());
+    }
+
+    if (state.growing) {
       const left = remaining(state.growing.ready_at);
       const t = $("#timer");
       const p = $("#progress");
@@ -640,34 +683,33 @@
       if (statusSub && currentTab === "garden")
         statusSub.textContent = `Осталось ${formatTime(left)}`;
 
-      if (left <= 0) {
-        clearInterval(timerId);
-        refresh();
-      }
-    }, 1000);
-  }
+      if (left <= 0 && !refreshing) refresh(true);
+    }
 
-  function startSelfWaterTimer() {
-    if (selfWaterTimerId) clearInterval(selfWaterTimerId);
-    if (!state?.growing || state.self_water?.can_water) return;
-
-    selfWaterTimerId = setInterval(() => {
-      if (!state.self_water || state.self_water.can_water) {
-        clearInterval(selfWaterTimerId);
-        return;
-      }
+    if (
+      state.growing &&
+      !state.self_water?.can_water &&
+      state.self_water?.wait_seconds > 0
+    ) {
       state.self_water.wait_seconds = Math.max(0, state.self_water.wait_seconds - 1);
-      const btn = $("#self-water-btn");
-      if (btn) {
-        if (state.self_water.wait_seconds <= 0) {
-          state.self_water.can_water = true;
-          clearInterval(selfWaterTimerId);
-          if (currentTab === "plot") render();
-        } else {
-          btn.innerHTML = `<span>💧 Полив через ${formatTime(state.self_water.wait_seconds)}</span>`;
+      if (state.self_water.wait_seconds <= 0) {
+        state.self_water.can_water = true;
+        if (currentTab === "plot") {
+          const btn = $("#self-water-btn");
+          const pct = state.config.self_water_reduction_percent;
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<span>💧 Полить своё растение</span>`;
+          }
+          const sub = document.querySelector(".btn-water__sub");
+          if (sub) sub.textContent = `Ускорит рост на ${pct}%`;
         }
+      } else if (currentTab === "plot") {
+        const btn = $("#self-water-btn");
+        if (btn)
+          btn.innerHTML = `<span>💧 Полив через ${formatTime(state.self_water.wait_seconds)}</span>`;
       }
-    }, 1000);
+    }
   }
 
   function updateHeader() {
@@ -680,14 +722,27 @@
       (hasTgAuth() ? "" : ` · игрок ${getDevUserId()}`);
   }
 
-  async function refresh() {
-    const globalStats = state?.global_stats || readGlobalStatsCache();
-    const ref = parseRef();
-    const q = ref ? `?ref=${ref}` : "";
-    state = await api("GET", "/api/me" + q);
-    if (globalStats) state.global_stats = globalStats;
-    updateHeader();
-    render();
+  async function refresh(fromMaturity) {
+    if (refreshing) return;
+    refreshing = true;
+    try {
+      const globalStats = state?.global_stats || readGlobalStatsCache();
+      const prevGrowingId = fromMaturity ? state?.growing?.id : null;
+      const prevReadyIds = new Set((state?.ready_plants || []).map((p) => p.id));
+      const ref = parseRef();
+      const q = ref ? `?ref=${ref}` : "";
+      state = await api("GET", "/api/me" + q);
+      if (globalStats) state.global_stats = globalStats;
+      updateHeader();
+      render();
+
+      if (prevGrowingId && !state.growing) {
+        const newPlant = state.ready_plants.find((p) => !prevReadyIds.has(p.id));
+        if (newPlant) showHarvestModal(newPlant);
+      }
+    } finally {
+      refreshing = false;
+    }
   }
 
   function readGlobalStatsCache() {
@@ -737,17 +792,30 @@
     try {
       const ref = parseRef();
       const q = ref ? `?ref=${ref}` : "";
-      const [me] = await Promise.all([
-        api("GET", "/api/me" + q),
-      ]);
-      state = me;
-      await ensureGlobalStats();
+      const cachedStats = readGlobalStatsCache();
+      const mePromise = api("GET", "/api/me" + q);
+      const statsPromise = cachedStats
+        ? Promise.resolve(cachedStats)
+        : api("GET", "/api/global-stats").catch(() => null);
+
+      state = await mePromise;
       updateHeader();
       loader.remove();
       tabbar.hidden = false;
 
+      const stats = await statsPromise;
+      if (stats) {
+        state.global_stats = stats;
+        if (!cachedStats) {
+          try {
+            localStorage.setItem(GLOBAL_STATS_CACHE_KEY, JSON.stringify(stats));
+          } catch (_) {}
+        }
+      }
+
       if (ref && ref !== state.user.ref_code) setTab("plot");
       else render();
+      ensureTickLoop();
     } catch (e) {
       const tg = getTg();
       loader.querySelector("p").textContent = tg?.initData
@@ -798,19 +866,13 @@
       setTimeout(fly, wait);
     }
 
-    setTimeout(fly, 20000 + Math.random() * 25000);
+    setTimeout(fly, 45000 + Math.random() * 45000);
   }
 
-  setInterval(() => {
-    if (state?.global_stats?.window_end && state.global_stats.window_end <= Math.floor(Date.now() / 1000)) {
-      ensureGlobalStats();
-    }
-    const counter = document.getElementById("global-grown-count");
-    if (counter && state?.global_stats) {
-      counter.textContent = formatNum(getGlobalDisplayCount());
-    }
-  }, 1000);
-
   init();
-  startAdPlane();
+  if (window.requestIdleCallback) {
+    requestIdleCallback(() => startAdPlane(), { timeout: 5000 });
+  } else {
+    setTimeout(startAdPlane, 3000);
+  }
 })();
