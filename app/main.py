@@ -5,16 +5,14 @@ import urllib.request
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from aiogram import Bot, Dispatcher
-from aiogram.types import Update
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.database import close_db, get_db
-from app.bot_setup import create_bot, create_dispatcher, use_webhook
+from app.bot_setup import create_bot, create_dispatcher
 from app.ref_code import encode_ref, make_ref_param, resolve_ref
 from app.services import (
     build_display_name,
@@ -35,8 +33,29 @@ from app.services import (
 logger = logging.getLogger(__name__)
 STATIC = Path(__file__).resolve().parent.parent / "static"
 _cached_bot_username: str | None = None
-_tg_bot: Bot | None = None
-_tg_dp: Dispatcher | None = None
+_polling_task: asyncio.Task | None = None
+
+
+async def _run_polling(settings) -> None:
+    while True:
+        bot = None
+        try:
+            bot = create_bot(settings)
+            await bot.delete_webhook(drop_pending_updates=False)
+            dp = create_dispatcher(settings)
+            logger.info("Bot polling started")
+            await dp.start_polling(bot, handle_signals=False)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.error("Bot polling error: %s — retry in 15s", e)
+            await asyncio.sleep(15)
+        finally:
+            if bot:
+                try:
+                    await bot.session.close()
+                except Exception:
+                    pass
 
 
 def _fetch_bot_username(token: str) -> str | None:
@@ -53,7 +72,7 @@ def _fetch_bot_username(token: str) -> str | None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _cached_bot_username, _tg_bot, _tg_dp
+    global _cached_bot_username, _polling_task
     settings = get_settings()
     if settings.bot_token and not settings.bot_username:
         uname = await asyncio.to_thread(_fetch_bot_username, settings.bot_token)
@@ -63,22 +82,16 @@ async def lifespan(app: FastAPI):
 
     await get_db()
 
-    if settings.bot_token and use_webhook(settings):
-        _tg_bot = create_bot(settings)
-        _tg_dp = create_dispatcher(settings)
-        webhook_url = f"{settings.webapp_url.rstrip('/')}/webhook"
-        try:
-            await _tg_bot.set_webhook(webhook_url, drop_pending_updates=True)
-            logger.info("Telegram webhook: %s", webhook_url)
-        except Exception as e:
-            logger.error("set_webhook failed: %s", e)
+    if settings.bot_token:
+        _polling_task = asyncio.create_task(_run_polling(settings))
 
     yield
 
-    if _tg_bot:
+    if _polling_task:
+        _polling_task.cancel()
         try:
-            await _tg_bot.session.close()
-        except Exception:
+            await _polling_task
+        except asyncio.CancelledError:
             pass
 
     try:
@@ -270,13 +283,3 @@ async def api_water_self(tg_user: dict = Depends(get_tg_user)):
 @app.get("/health")
 async def health():
     return {"status": "ok"}
-
-
-@app.post("/webhook")
-async def telegram_webhook(request: Request):
-    if not _tg_bot or not _tg_dp:
-        raise HTTPException(503, "Bot webhook not configured")
-    data = await request.json()
-    update = Update.model_validate(data)
-    await _tg_dp.feed_update(_tg_bot, update)
-    return {"ok": True}
