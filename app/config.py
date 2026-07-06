@@ -52,6 +52,10 @@ class Settings(BaseSettings):
     ref_add: int = 52849
 
     db_path: str = _default_db_path()
+    database_url: str = ""  # postgresql://... — для 10k+ онлайн (отдельный проект PostgreSQL на Amvera)
+    redis_url: str = ""  # redis://... — кэш /api/me
+    run_mode: str = "both"  # both | api | bot — для масштабирования: api отдельно, bot отдельно
+    workers: int = 1  # воркеры uvicorn (только run_mode=api или both с workers=1)
     host: str = "0.0.0.0"
     port: int = 8000
 

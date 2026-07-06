@@ -82,7 +82,7 @@ async def lifespan(app: FastAPI):
 
     await get_db()
 
-    if settings.bot_token:
+    if settings.bot_token and settings.run_mode in ("bot", "both"):
         _polling_task = asyncio.create_task(_run_polling(settings))
 
     yield
