@@ -1,12 +1,8 @@
 (function () {
   "use strict";
 
-  const tg = window.Telegram?.WebApp;
-  const isDev = !tg?.initData;
-  if (tg?.initData) {
-    tg.ready();
-    tg.expand();
-  }
+  const getTg = () => window.Telegram?.WebApp;
+  const hasTgAuth = () => Boolean(getTg()?.initData);
 
   const $ = (s) => document.querySelector(s);
   const main = $("#main");
@@ -79,7 +75,7 @@
   }
 
   function initDevUser() {
-    if (!isDev) return;
+    if (hasTgAuth()) return;
     const p = new URLSearchParams(location.search);
     const as = p.get("as");
     const ref = p.get("ref");
@@ -103,6 +99,7 @@
   }
 
   function parseRef() {
+    const tg = getTg();
     const sp = tg?.initDataUnsafe?.start_param;
     const fromSp = parseRefCode(sp);
     if (fromSp) return fromSp;
@@ -115,12 +112,13 @@
   }
 
   async function api(method, path, body) {
+    const tg = getTg();
     const apiBase =
       document.querySelector('meta[name="api-url"]')?.content?.replace(/\/$/, "") ||
       "";
     const opts = { method, headers: {} };
     if (tg?.initData) opts.headers["X-Telegram-Init-Data"] = tg.initData;
-    if (isDev) opts.headers["X-Dev-User-Id"] = getDevUserId();
+    if (!hasTgAuth()) opts.headers["X-Dev-User-Id"] = getDevUserId();
     if (body) {
       opts.headers["Content-Type"] = "application/json";
       opts.body = JSON.stringify(body);
@@ -600,7 +598,7 @@
       coinsEl.innerHTML = `${coinHtml()}<span class="coin-num">${state.user.coins}</span>`;
     modeEl.textContent =
       (state.config.mode === "test" ? "тест" : "игра") +
-      (isDev ? ` · игрок ${getDevUserId()}` : "");
+      (hasTgAuth() ? "" : ` · игрок ${getDevUserId()}`);
   }
 
   async function refresh() {
@@ -617,6 +615,11 @@
   });
 
   async function init() {
+    const tg = getTg();
+    if (tg?.initData) {
+      tg.ready();
+      tg.expand();
+    }
     initDevUser();
     try {
       const ref = parseRef();
@@ -629,8 +632,9 @@
       if (ref && ref !== state.user.ref_code) setTab("plot");
       else render();
     } catch (e) {
+      const tg = getTg();
       loader.querySelector("p").textContent = tg?.initData
-        ? "Ошибка загрузки. Попробуй закрыть и открыть снова."
+        ? "Ошибка загрузки. Проверь BOT_TOKEN на Amvera."
         : "Открой через бота @flt_garden_bot → «Открыть сад»";
     }
   }
