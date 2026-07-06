@@ -3,7 +3,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 STATIC = ROOT / "static"
-API_URL = "https://YOUR-PROJECT.amvera.app"
+API_URL = "https://flt-eg0r6.amvera.io"
 OUT_DIRS = [ROOT, ROOT / "docs"]
 
 

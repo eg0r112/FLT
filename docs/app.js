@@ -629,9 +629,9 @@
       if (ref && ref !== state.user.ref_code) setTab("plot");
       else render();
     } catch (e) {
-      loader.querySelector("p").textContent = isDev
-        ? "Сервер не отвечает"
-        : "Открой через Telegram";
+      loader.querySelector("p").textContent = tg?.initData
+        ? "Ошибка загрузки. Попробуй закрыть и открыть снова."
+        : "Открой через бота @flt_garden_bot → «Открыть сад»";
     }
   }
 
