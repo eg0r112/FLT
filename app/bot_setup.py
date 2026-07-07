@@ -1,10 +1,12 @@
 import logging
+import re
 
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command, CommandStart
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
 from app.config import Settings
+from app.services import get_global_grown_total, set_global_grown_total
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +59,24 @@ def register_handlers(dp: Dispatcher, settings: Settings) -> None:
             "Открой мини-приложение:",
             reply_markup=webapp_keyboard(settings.webapp_url),
         )
+
+    @dp.message(F.text)
+    async def admin_text(message: types.Message) -> None:
+        if not message.from_user or message.from_user.id != settings.admin_telegram_id:
+            return
+        text = (message.text or "").strip()
+        low = text.lower()
+
+        if low == "сколько":
+            total = await get_global_grown_total()
+            await message.answer(f"🌍 Выращено в мире: {total:,}".replace(",", " "))
+            return
+
+        m = re.match(r"редактировать\s+(\d+)", low)
+        if m:
+            total = await set_global_grown_total(int(m.group(1)))
+            await message.answer(f"✅ Счётчик установлен: {total:,}".replace(",", " "))
+            return
 
 
 def create_dispatcher(settings: Settings) -> Dispatcher:

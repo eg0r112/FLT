@@ -229,8 +229,10 @@ async def api_me(
         "config": {
             "growth_duration": upgrades["growth_duration"],
             "water_cooldown": settings.water_cooldown,
+            "water_time_reduction": settings.water_time_reduction,
             "self_water_cooldown": settings.self_water_cooldown,
             "self_water_reduction_percent": upgrades["self_water_total_percent"],
+            "self_water_seconds": upgrades["self_water_seconds"],
             "mode": settings.mode,
             "dev_mode": settings.dev_mode,
         },

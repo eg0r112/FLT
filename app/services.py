@@ -13,6 +13,7 @@ from app.database import get_db
 NOW = lambda: int(time.time())
 
 PLOT_PRICE = 200
+PLOT_MAX = 10
 SPEED_PRICES = (100, 200)
 SPEED_MAX = 2
 WATER_CAN_PRICES = (50, 100, 150)
@@ -58,6 +59,51 @@ def roll_background() -> int:
     return random.randint(1, get_settings().background_count)
 
 
+GLOBAL_GROWN_KEY = "global_grown_total"
+
+
+async def _upsert_setting(key: str, value: str) -> None:
+    db = await get_db()
+    await db.execute(
+        "INSERT INTO app_settings (key, value) VALUES (?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        (key, value),
+    )
+    await db.commit()
+
+
+async def get_app_setting(key: str) -> str | None:
+    db = await get_db()
+    cur = await db.execute("SELECT value FROM app_settings WHERE key = ?", (key,))
+    row = await cur.fetchone()
+    if not row:
+        return None
+    return row["value"] if isinstance(row, dict) else row[0]
+
+
+async def get_global_grown_total() -> int:
+    raw = await get_app_setting(GLOBAL_GROWN_KEY)
+    if raw is not None:
+        return max(0, int(raw))
+    db = await get_db()
+    cur = await db.execute("SELECT COUNT(*) AS c FROM plants WHERE status = 'ready'")
+    row = await cur.fetchone()
+    return int(row["c"] if isinstance(row, dict) else row[0])
+
+
+async def set_global_grown_total(total: int) -> int:
+    total = max(0, int(total))
+    await _upsert_setting(GLOBAL_GROWN_KEY, str(total))
+    return total
+
+
+async def increment_global_grown(count: int = 1) -> int:
+    total = await get_global_grown_total()
+    total += max(0, int(count))
+    await _upsert_setting(GLOBAL_GROWN_KEY, str(total))
+    return total
+
+
 async def get_user_by_telegram(telegram_id: int) -> dict | None:
     db = await get_db()
     cur = await db.execute(
@@ -83,13 +129,23 @@ async def get_user_by_id(user_id: int) -> dict | None:
 
 
 def plot_count(user: dict) -> int:
-    return 1 + int(user.get("extra_plots") or 0)
+    return min(PLOT_MAX, 1 + int(user.get("extra_plots") or 0))
+
+
+def max_extra_plots() -> int:
+    return PLOT_MAX - 1
 
 
 def growth_duration_for_user(settings, user: dict) -> int:
     level = int(user.get("speed_level") or 0)
     base = settings.growth_duration
     return max(30, int(base * (1 - 0.15 * level)))
+
+
+def self_water_seconds(settings, user: dict) -> int:
+    base = settings.water_time_reduction
+    bonus = int(user.get("water_can_level") or 0) * int(base * 0.1)
+    return base + bonus
 
 
 def self_water_percent(settings, user: dict) -> int:
@@ -103,7 +159,8 @@ def build_upgrades_info(user: dict, settings) -> dict:
     extra = int(user.get("extra_plots") or 0)
     return {
         "extra_plots": extra,
-        "plot_count": 1 + extra,
+        "plot_count": plot_count(user),
+        "plot_max": PLOT_MAX,
         "speed_level": speed_level,
         "speed_max": SPEED_MAX,
         "water_can_level": water_level,
@@ -111,6 +168,7 @@ def build_upgrades_info(user: dict, settings) -> dict:
         "growth_reduction_percent": speed_level * 15,
         "self_water_bonus_percent": water_level * 10,
         "self_water_total_percent": self_water_percent(settings, user),
+        "self_water_seconds": self_water_seconds(settings, user),
         "growth_duration": growth_duration_for_user(settings, user),
     }
 
@@ -126,7 +184,8 @@ def build_shop_state(user: dict) -> dict:
         "plot": {
             "price": PLOT_PRICE,
             "owned": extra,
-            "can_buy": coins >= PLOT_PRICE,
+            "max": max_extra_plots(),
+            "can_buy": coins >= PLOT_PRICE and extra < max_extra_plots(),
         },
         "speed": {
             "level": speed,
@@ -152,6 +211,8 @@ async def buy_upgrade(user_id: int, upgrade_type: str) -> dict:
     coins = int(user["coins"])
 
     if upgrade_type == "plot":
+        if int(user.get("extra_plots") or 0) >= max_extra_plots():
+            return {"ok": False, "error": "max_level"}
         if coins < PLOT_PRICE:
             return {"ok": False, "error": "not_enough_coins"}
         await db.execute(
@@ -371,6 +432,7 @@ async def finalize_ready_plants(user_id: int) -> list[dict]:
         plant["status"] = "ready"
         plant["rarity"] = rarity
         plant["background_id"] = bg
+    await increment_global_grown(len(plants))
     await db.commit()
     return plants
 
@@ -388,17 +450,20 @@ async def get_friend_growing_plant(owner_telegram_id: int) -> dict | None:
     return plant
 
 
-async def can_water(waterer_id: int) -> tuple[bool, int]:
-    """Check global water cooldown for user (last water time)."""
+async def can_water_friend_plant(waterer_id: int, plant_id: int) -> tuple[bool, int]:
+    """Once per day per friend's plant."""
     db = await get_db()
     settings = get_settings()
     cur = await db.execute(
-        "SELECT MAX(watered_at) as last FROM waterings WHERE waterer_id = ?",
-        (waterer_id,),
+        "SELECT watered_at FROM waterings WHERE waterer_id = ? AND plant_id = ? "
+        "ORDER BY watered_at DESC LIMIT 1",
+        (waterer_id, plant_id),
     )
     row = await cur.fetchone()
-    last = row["last"] if row and row["last"] else 0
-    elapsed = NOW() - last
+    if not row:
+        return True, 0
+    last = row["watered_at"] if isinstance(row, dict) else row[0]
+    elapsed = NOW() - int(last)
     if elapsed < settings.water_cooldown:
         return False, settings.water_cooldown - elapsed
     return True, 0
@@ -443,8 +508,7 @@ async def water_own_plant(user_id: int, plant_id: int) -> dict:
     if remaining_sec <= 0:
         return {"ok": False, "error": "already_ready"}
 
-    pct = self_water_percent(settings, user)
-    saved = int(remaining_sec * pct / 100)
+    saved = min(remaining_sec, self_water_seconds(settings, user))
     new_ready = max(now, plant["ready_at"] - saved)
 
     db = await get_db()
@@ -462,7 +526,7 @@ async def water_own_plant(user_id: int, plant_id: int) -> dict:
         "ok": True,
         "new_ready_at": new_ready,
         "time_saved": saved,
-        "reduction_percent": pct,
+        "reduction_seconds": saved,
     }
 
 
@@ -477,11 +541,11 @@ async def water_plant(
     if waterer_id == owner_user_id:
         return {"ok": False, "error": "cannot_water_own"}
 
-    plant = await get_growing_plant(owner_user_id)
-    if not plant or plant["id"] != plant_id:
+    plant = await get_growing_plant_by_id(owner_user_id, plant_id)
+    if not plant:
         return {"ok": False, "error": "plant_not_found"}
 
-    can, wait = await can_water(waterer_id)
+    can, wait = await can_water_friend_plant(waterer_id, plant_id)
     if not can:
         return {"ok": False, "error": "cooldown", "wait_seconds": wait}
 
@@ -521,25 +585,14 @@ async def get_user_stats(user_id: int) -> dict:
 
 
 async def get_global_growth_window(now_ts: int | None = None) -> dict:
-    """Return one-hour delayed totals for smooth local interpolation on the client."""
+    """Totals for smooth local interpolation on the client."""
     now_ts = now_ts or NOW()
     current_hour = now_ts - (now_ts % 3600)
-    previous_hour = current_hour - 3600
     next_hour = current_hour + 3600
-
-    db = await get_db()
-    cur = await db.execute(
-        """
-        SELECT
-            (SELECT COUNT(*) FROM plants WHERE ready_at < ?) AS from_count,
-            (SELECT COUNT(*) FROM plants WHERE ready_at < ?) AS to_count
-        """,
-        (previous_hour, current_hour),
-    )
-    row = await cur.fetchone()
+    total = await get_global_grown_total()
     return {
         "window_start": current_hour,
         "window_end": next_hour,
-        "from_count": row["from_count"],
-        "to_count": row["to_count"],
+        "from_count": total,
+        "to_count": total,
     }

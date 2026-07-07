@@ -16,35 +16,34 @@ class Settings(BaseSettings):
     bot_token: str = ""
     bot_username: str = ""
     webapp_url: str = "http://localhost:8000"
-    telegram_proxy: str = ""  # socks5://127.0.0.1:1080 — если api.telegram.org не открывается
-    cors_origins: str = "*"  # через запятую, напр. https://user.github.io
+    telegram_proxy: str = ""
+    cors_origins: str = "*"
     secret_key: str = "change-me"
 
-    # test | prod
-    mode: str = "test"
+    mode: str = "prod"
     dev_mode: bool = False
     dev_user_id: int = 1001
     dev_username: str = "local"
 
+    admin_telegram_id: int = 5143241640
+    reset_db: bool = False
+
     # seconds
-    growth_duration_test: int = 300  # 5 min
-    growth_duration_prod: int = 36000  # 10 h
-    water_cooldown_test: int = 60  # 1 min
-    water_cooldown_prod: int = 86400  # 24 h
-    water_time_reduction: int = 600  # 10 min per friend water
+    growth_duration_test: int = 300
+    growth_duration_prod: int = 18000  # 5 h
+    water_cooldown_test: int = 60
+    water_cooldown_prod: int = 86400  # 1 раз в сутки на грядку друга
+    water_time_reduction: int = 3600  # −1 ч за полив
 
-    # self water (own plant)
     self_water_cooldown_test: int = 10
-    self_water_cooldown_prod: int = 86400  # 24 h
+    self_water_cooldown_prod: int = 18000  # 5 h
     self_water_reduction_percent_test: int = 90
-    self_water_reduction_percent_prod: int = 15
+    self_water_reduction_percent_prod: int = 15  # база для бонуса лейки
 
-    # bonuses (coins)
     new_user_bonus: int = 100
     referrer_bonus: int = 50
-    water_bonus: int = 5
+    water_bonus: int = 0
 
-    # plant rarities: name:weight pairs
     rarity_weights: str = "common:60,uncommon:25,rare:10,epic:4,legendary:1"
     background_count: int = 10
 
@@ -52,10 +51,10 @@ class Settings(BaseSettings):
     ref_add: int = 52849
 
     db_path: str = _default_db_path()
-    database_url: str = ""  # postgresql://... — для 10k+ онлайн (отдельный проект PostgreSQL на Amvera)
-    redis_url: str = ""  # redis://... — кэш /api/me
-    run_mode: str = "both"  # both | api | bot — для масштабирования: api отдельно, bot отдельно
-    workers: int = 1  # воркеры uvicorn (только run_mode=api или both с workers=1)
+    database_url: str = ""
+    redis_url: str = ""
+    run_mode: str = "both"
+    workers: int = 1
     host: str = "0.0.0.0"
     port: int = 8000
 

@@ -25,10 +25,11 @@
     plot: {
       icon: "🌱",
       name: "Доп. грядка",
-      desc: (s) =>
-        s?.owned
-          ? `У тебя ${1 + s.owned} грядок · ещё +1 за ${s.price}`
-          : "Выращивай больше растений одновременно",
+      desc: (s) => {
+        if (!s) return "До 10 грядок одновременно";
+        if (s.owned >= s.max) return `Максимум: ${s.max + 1} грядок`;
+        return `Сейчас ${1 + s.owned} · макс. ${s.max + 1} · +1 за ${s.price}`;
+      },
     },
     speed: {
       icon: "⚡",
@@ -134,6 +135,24 @@
       state?.config?.self_water_reduction_percent ??
       15
     );
+  }
+
+  function getSelfWaterSeconds() {
+    return (
+      state?.upgrades?.self_water_seconds ??
+      state?.config?.self_water_seconds ??
+      state?.config?.water_time_reduction ??
+      3600
+    );
+  }
+
+  function formatSavedTime(sec) {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    if (h > 0 && m > 0) return `${h} ч ${m} мин`;
+    if (h > 0) return `${h} ч`;
+    if (m > 0) return `${m} мин`;
+    return `${sec} сек`;
   }
 
   function formatGrowthDuration(sec) {
@@ -305,7 +324,7 @@
 
   function selfWaterBtn(plantId) {
     const sw = state.self_water;
-    const pct = getSelfWaterPercent();
+    const saved = formatSavedTime(getSelfWaterSeconds());
     const can = sw?.can_water;
     const wait = sw?.wait_seconds || 0;
     if (can) {
@@ -313,13 +332,13 @@
         <button class="btn btn-water self-water-btn" data-plant-id="${plantId}">
           <span>💧 Полить своё растение</span>
         </button>
-        <span class="btn-water__sub">Ускорит рост на ${pct}%</span>`;
+        <span class="btn-water__sub">Ускорит рост на ${saved}</span>`;
     }
     return `
       <button class="btn btn-water self-water-btn" data-plant-id="${plantId}" disabled>
         <span>💧 Полив через ${formatTime(wait)}</span>
       </button>
-      <span class="btn-water__sub">Следующий полив ускорит на ${pct}%</span>`;
+      <span class="btn-water__sub">Следующий полив ускорит на ${saved}</span>`;
   }
 
   function renderGrowing(plant, slot) {
@@ -576,7 +595,8 @@
       .map((id, i) => {
         const meta = UPGRADE_META[id];
         const s = shop[id] || {};
-        const maxed = id === "plot" ? false : s.level >= s.max;
+        const maxed =
+          id === "plot" ? (s.owned ?? 0) >= (s.max ?? 9) : s.level >= s.max;
         const price = s.price;
         const canBuy = s.can_buy;
         let action = "";
@@ -711,7 +731,7 @@
       const plant = getGrowingPlants().find((p) => p.id === plantId);
       if (plant) plant.ready_at = res.new_ready_at;
       state.self_water = { can_water: false, wait_seconds: state.config.self_water_cooldown };
-      toast(`Полито! −${res.reduction_percent}% времени 💧`);
+      toast(`Полито! −${formatSavedTime(res.reduction_seconds || res.time_saved)} 💧`);
       render();
     } catch (e) {
       const msg =
@@ -731,7 +751,7 @@
       state.upgrades = res.upgrades;
       state.shop = res.shop;
       state.config.growth_duration = res.upgrades.growth_duration;
-      state.config.self_water_reduction_percent = res.upgrades.self_water_total_percent;
+      state.config.self_water_seconds = res.upgrades.self_water_seconds;
       updateHeader();
       render();
       const names = { plot: "Грядка", speed: "Ускорение", water_can: "Лейка" };
@@ -823,7 +843,7 @@
       state.self_water?.wait_seconds > 0
     ) {
       state.self_water.wait_seconds = Math.max(0, state.self_water.wait_seconds - 1);
-      const pct = getSelfWaterPercent();
+      const saved = formatSavedTime(getSelfWaterSeconds());
       if (state.self_water.wait_seconds <= 0) {
         state.self_water.can_water = true;
         if (currentTab === "plot") {
@@ -832,7 +852,7 @@
             btn.innerHTML = `<span>💧 Полить своё растение</span>`;
           });
           document.querySelectorAll(".btn-water__sub").forEach((sub) => {
-            sub.textContent = `Ускорит рост на ${pct}%`;
+            sub.textContent = `Ускорит рост на ${saved}`;
           });
         }
       } else if (currentTab === "plot") {
