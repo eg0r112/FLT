@@ -5,6 +5,8 @@ from app.config import get_settings
 
 _db: aiosqlite.Connection | None = None
 
+# Базовая схема без новых колонок — совместима со старой БД на Amvera.
+# Все апгрейды добавляются через ALTER ниже.
 SCHEMA = """
 PRAGMA journal_mode=WAL;
 PRAGMA synchronous=NORMAL;
@@ -15,12 +17,8 @@ CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     telegram_id INTEGER UNIQUE NOT NULL,
     username TEXT,
-    display_name TEXT,
     referrer_id INTEGER REFERENCES users(id),
     coins INTEGER NOT NULL DEFAULT 0,
-    extra_plots INTEGER NOT NULL DEFAULT 0,
-    speed_level INTEGER NOT NULL DEFAULT 0,
-    water_can_level INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_users_telegram ON users(telegram_id);
@@ -33,8 +31,7 @@ CREATE TABLE IF NOT EXISTS plants (
     rarity TEXT,
     background_id INTEGER,
     planted_at INTEGER NOT NULL,
-    ready_at INTEGER NOT NULL,
-    plot_slot INTEGER NOT NULL DEFAULT 1
+    ready_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_plants_user ON plants(user_id);
 CREATE INDEX IF NOT EXISTS idx_plants_status ON plants(status);
@@ -59,6 +56,32 @@ CREATE TABLE IF NOT EXISTS self_waterings (
 CREATE INDEX IF NOT EXISTS idx_self_water_user ON self_waterings(user_id, watered_at);
 """
 
+_MIGRATIONS = (
+    "ALTER TABLE users ADD COLUMN display_name TEXT",
+    "ALTER TABLE users ADD COLUMN extra_plots INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE users ADD COLUMN speed_level INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE users ADD COLUMN water_can_level INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE plants ADD COLUMN plot_slot INTEGER NOT NULL DEFAULT 1",
+)
+
+
+async def _run_migrations(db: aiosqlite.Connection) -> None:
+    for sql in _MIGRATIONS:
+        try:
+            await db.execute(sql)
+            await db.commit()
+        except Exception:
+            pass
+    await db.execute("DROP INDEX IF EXISTS idx_one_growing")
+    try:
+        await db.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_one_growing_slot "
+            "ON plants(user_id, plot_slot) WHERE status = 'growing'"
+        )
+    except Exception:
+        pass
+    await db.commit()
+
 
 async def get_db() -> aiosqlite.Connection:
     global _db
@@ -69,24 +92,7 @@ async def get_db() -> aiosqlite.Connection:
         _db.row_factory = aiosqlite.Row
         await _db.executescript(SCHEMA)
         await _db.commit()
-        for sql in (
-            "ALTER TABLE users ADD COLUMN display_name TEXT",
-            "ALTER TABLE users ADD COLUMN extra_plots INTEGER NOT NULL DEFAULT 0",
-            "ALTER TABLE users ADD COLUMN speed_level INTEGER NOT NULL DEFAULT 0",
-            "ALTER TABLE users ADD COLUMN water_can_level INTEGER NOT NULL DEFAULT 0",
-            "ALTER TABLE plants ADD COLUMN plot_slot INTEGER NOT NULL DEFAULT 1",
-        ):
-            try:
-                await _db.execute(sql)
-                await _db.commit()
-            except Exception:
-                pass
-        await _db.execute("DROP INDEX IF EXISTS idx_one_growing")
-        await _db.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_one_growing_slot "
-            "ON plants(user_id, plot_slot) WHERE status = 'growing'"
-        )
-        await _db.commit()
+        await _run_migrations(_db)
     return _db
 
 
