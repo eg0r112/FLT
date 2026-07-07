@@ -15,8 +15,12 @@ CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     telegram_id INTEGER UNIQUE NOT NULL,
     username TEXT,
+    display_name TEXT,
     referrer_id INTEGER REFERENCES users(id),
     coins INTEGER NOT NULL DEFAULT 0,
+    extra_plots INTEGER NOT NULL DEFAULT 0,
+    speed_level INTEGER NOT NULL DEFAULT 0,
+    water_can_level INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_users_telegram ON users(telegram_id);
@@ -29,12 +33,12 @@ CREATE TABLE IF NOT EXISTS plants (
     rarity TEXT,
     background_id INTEGER,
     planted_at INTEGER NOT NULL,
-    ready_at INTEGER NOT NULL
+    ready_at INTEGER NOT NULL,
+    plot_slot INTEGER NOT NULL DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS idx_plants_user ON plants(user_id);
 CREATE INDEX IF NOT EXISTS idx_plants_status ON plants(status);
 CREATE INDEX IF NOT EXISTS idx_plants_ready_at ON plants(ready_at);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_one_growing_slot ON plants(user_id, plot_slot) WHERE status = 'growing';
 
 CREATE TABLE IF NOT EXISTS waterings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -78,6 +82,10 @@ async def get_db() -> aiosqlite.Connection:
             except Exception:
                 pass
         await _db.execute("DROP INDEX IF EXISTS idx_one_growing")
+        await _db.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_one_growing_slot "
+            "ON plants(user_id, plot_slot) WHERE status = 'growing'"
+        )
         await _db.commit()
     return _db
 
