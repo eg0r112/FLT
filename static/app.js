@@ -529,9 +529,9 @@
         <p>Вы оба получите бонус. Друг сможет полить твоё растение и ускорить рост.</p>
       </div>
       <ul class="ref-steps">
-        <li><span>1</span> Поделись ссылкой с другом</li>
-        <li><span>2</span> Друг регистрируется — вы оба получаете ${coinHtml(true)} монеты</li>
-        <li><span>3</span> Друг поливает твоё растение — рост быстрее</li>
+        <li><span class="ref-steps__num">1</span><span class="ref-steps__text">Поделись ссылкой с другом</span></li>
+        <li><span class="ref-steps__num">2</span><span class="ref-steps__text">Друг регистрируется — вы оба получаете бонусные монеты</span></li>
+        <li><span class="ref-steps__num">3</span><span class="ref-steps__text">Друг поливает твоё растение — рост быстрее</span></li>
       </ul>
       ${renderStats()}
       <button class="btn btn-share" id="copy-ref" style="width:100%;margin-top:4px">

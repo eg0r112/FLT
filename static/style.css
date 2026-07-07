@@ -970,10 +970,12 @@ body {
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--text);
+  line-height: 1.45;
   animation: pop-in 0.4s ease both;
 }
 
-.ref-steps li span {
+.ref-steps__num,
+.ref-steps li > span:first-child {
   flex-shrink: 0;
   width: 28px;
   height: 28px;
@@ -985,6 +987,12 @@ body {
   font-family: var(--font-display);
   font-weight: 800;
   font-size: 0.85rem;
+}
+
+.ref-steps__text {
+  flex: 1;
+  min-width: 0;
+  padding-top: 4px;
 }
 
 /* ── Shop / upgrades ── */
