@@ -169,11 +169,12 @@ class PostgresDatabase:
         pg_sql = _to_pg_sql(sql)
         upper = pg_sql.strip().upper()
         is_insert = upper.startswith("INSERT") and "RETURNING" not in upper
-        if is_insert:
+        wants_lastrowid = is_insert and "APP_SETTINGS" not in upper
+        if wants_lastrowid:
             pg_sql = pg_sql.rstrip().rstrip(";") + " RETURNING id"
 
         async with self._pool.acquire() as conn:
-            if is_insert:
+            if wants_lastrowid:
                 row = await conn.fetchrow(pg_sql, *params)
                 lastrowid = row["id"] if row else None
                 return CursorResult([], lastrowid)
