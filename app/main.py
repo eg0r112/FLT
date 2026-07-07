@@ -7,9 +7,10 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.version import BUILD
 from app.config import get_settings
 from app.database import close_db, get_db
 from app.bot_setup import create_bot, create_dispatcher
@@ -164,9 +165,21 @@ def _referral_link(telegram_id: int, settings) -> str:
     return f"https://t.me/{_bot_username(settings)}?start={ref}"
 
 
+_NO_CACHE = {"Cache-Control": "no-store, no-cache, must-revalidate"}
+
+
 @app.get("/")
 async def index():
-    return FileResponse(STATIC / "index.html")
+    html = (STATIC / "index.html").read_text(encoding="utf-8")
+    html = html.replace(
+        'href="/static/style.css"',
+        f'href="/static/style.css?v={BUILD}"',
+    )
+    html = html.replace(
+        'src="/static/app.js"',
+        f'src="/static/app.js?v={BUILD}"',
+    )
+    return HTMLResponse(html, headers=_NO_CACHE)
 
 
 @app.get("/api/me")
@@ -312,4 +325,4 @@ async def api_water_self(
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {"status": "ok", "version": BUILD}
