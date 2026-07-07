@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS plants (
 CREATE INDEX IF NOT EXISTS idx_plants_user ON plants(user_id);
 CREATE INDEX IF NOT EXISTS idx_plants_status ON plants(status);
 CREATE INDEX IF NOT EXISTS idx_plants_ready_at ON plants(ready_at);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_one_growing ON plants(user_id) WHERE status = 'growing';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_one_growing_slot ON plants(user_id, plot_slot) WHERE status = 'growing';
 
 CREATE TABLE IF NOT EXISTS waterings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -67,12 +67,18 @@ async def get_db() -> aiosqlite.Connection:
         await _db.commit()
         for sql in (
             "ALTER TABLE users ADD COLUMN display_name TEXT",
+            "ALTER TABLE users ADD COLUMN extra_plots INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN speed_level INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN water_can_level INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE plants ADD COLUMN plot_slot INTEGER NOT NULL DEFAULT 1",
         ):
             try:
                 await _db.execute(sql)
                 await _db.commit()
             except Exception:
                 pass
+        await _db.execute("DROP INDEX IF EXISTS idx_one_growing")
+        await _db.commit()
     return _db
 
 

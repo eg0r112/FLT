@@ -16,9 +16,39 @@
   let tickId = null;
   let globalStatsLoading = false;
   let harvestModalOpen = false;
+  let harvestQueue = [];
   let refreshing = false;
 
   const TABS = ["garden", "plot", "friends", "shop", "profile"];
+
+  const UPGRADE_META = {
+    plot: {
+      icon: "🌱",
+      name: "Доп. грядка",
+      desc: (s) =>
+        s?.owned
+          ? `У тебя ${1 + s.owned} грядок · ещё +1 за ${s.price}`
+          : "Выращивай больше растений одновременно",
+    },
+    speed: {
+      icon: "⚡",
+      name: "Ускорение роста",
+      desc: (s) => {
+        if (!s || s.level >= s.max) return "Максимум: −30% ко времени";
+        const next = (s.level + 1) * 15;
+        return `Сейчас −${s.level * 15}% · след. −${next}%`;
+      },
+    },
+    water_can: {
+      icon: "💧",
+      name: "Золотая лейка",
+      desc: (s) => {
+        if (!s || s.level >= s.max) return "Максимум: +30% к своему поливу";
+        const next = (s.level + 1) * 10;
+        return `Сейчас +${s.level * 10}% · след. +${next}%`;
+      },
+    },
+  };
 
   const RARITY_EMOJI = {
     common: "🌿",
@@ -35,13 +65,6 @@
     epic: "Эпическое",
     legendary: "Легендарное",
   };
-
-  const UPGRADES = [
-    { id: "plot2", icon: "🌱", name: "Вторая грядка", desc: "Выращивай 2 растения одновременно", price: 500 },
-    { id: "speed", icon: "⚡", name: "Ускорение роста", desc: "−15% ко времени выращивания", price: 300 },
-    { id: "water", icon: "💧", name: "Золотая лейка", desc: "Свой полив сильнее на 10%", price: 250 },
-    { id: "bonus", icon: "💰", name: "Щедрый урожай", desc: "+20% монет за поливы друзей", price: 400 },
-  ];
 
   const RARITY_MARKET = {
     common: { weight: 60, base: 18 },
@@ -96,6 +119,33 @@
     return Math.round(g.from_count + (g.to_count - g.from_count) * progress);
   }
 
+  function getGrowingPlants() {
+    if (state?.growing_plants?.length) return state.growing_plants;
+    return state?.growing ? [state.growing] : [];
+  }
+
+  function getPlotCount() {
+    return state?.upgrades?.plot_count || 1;
+  }
+
+  function getSelfWaterPercent() {
+    return (
+      state?.upgrades?.self_water_total_percent ??
+      state?.config?.self_water_reduction_percent ??
+      15
+    );
+  }
+
+  function formatGrowthDuration(sec) {
+    if (state?.config?.mode === "test") return "5 минут";
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    if (h > 0 && m > 0) return `${h} ч ${m} мин`;
+    if (h > 0) return `${h} часов`;
+    if (m > 0) return `${m} минут`;
+    return `${sec} сек`;
+  }
+
   function showHarvestModal(plant) {
     if (!plant || harvestModalOpen) return;
     harvestModalOpen = true;
@@ -119,12 +169,19 @@
     const close = () => {
       harvestModalOpen = false;
       overlay.remove();
+      if (harvestQueue.length) showHarvestModal(harvestQueue.shift());
     };
     overlay.querySelector(".harvest-modal__btn").addEventListener("click", close);
     overlay.addEventListener("click", (e) => {
       if (e.target === overlay) close();
     });
     document.body.appendChild(overlay);
+  }
+
+  function queueHarvestModal(plant) {
+    if (!plant) return;
+    if (harvestModalOpen) harvestQueue.push(plant);
+    else showHarvestModal(plant);
   }
 
   function toast(msg) {
@@ -246,54 +303,54 @@
       </div>`;
   }
 
-  function selfWaterBtn() {
+  function selfWaterBtn(plantId) {
     const sw = state.self_water;
-    const pct = state.config.self_water_reduction_percent;
+    const pct = getSelfWaterPercent();
     const can = sw?.can_water;
     const wait = sw?.wait_seconds || 0;
     if (can) {
       return `
-        <button class="btn btn-water" id="self-water-btn">
+        <button class="btn btn-water self-water-btn" data-plant-id="${plantId}">
           <span>💧 Полить своё растение</span>
         </button>
         <span class="btn-water__sub">Ускорит рост на ${pct}%</span>`;
     }
     return `
-      <button class="btn btn-water" id="self-water-btn" disabled>
+      <button class="btn btn-water self-water-btn" data-plant-id="${plantId}" disabled>
         <span>💧 Полив через ${formatTime(wait)}</span>
       </button>
       <span class="btn-water__sub">Следующий полив ускорит на ${pct}%</span>`;
   }
 
-  function renderGrowing(plant) {
+  function renderGrowing(plant, slot) {
     const left = remaining(plant.ready_at);
     const pct = progress(plant.planted_at, plant.ready_at);
     return `
-      <div class="plot">
+      <div class="plot" data-plant-id="${plant.id}">
         <span class="plot-badge">Растёт!</span>
-        <h2>Грядка №1</h2>
+        <h2>Грядка №${slot}</h2>
         ${bed("sprout", false)}
         <div class="timer-box">
           <div class="timer-box__label">⏳ До цветения</div>
-          <div class="timer" id="timer">${formatTime(left)}</div>
+          <div class="timer plant-timer" data-plant-id="${plant.id}">${formatTime(left)}</div>
           <div class="progress-track">
-            <div class="progress-fill" id="progress" style="width:${pct}%"></div>
+            <div class="progress-fill plant-progress" data-plant-id="${plant.id}" style="width:${pct}%"></div>
           </div>
         </div>
-        ${selfWaterBtn()}
-        <p class="plot-desc" style="margin-top:12px;margin-bottom:0">Друзья тоже могут полить — им достанется бонус ${coinHtml(true)}</p>
+        ${selfWaterBtn(plant.id)}
+        <p class="plot-desc" style="margin-top:12px;margin-bottom:0">Друзья тоже могут полить и ускорить рост</p>
       </div>`;
   }
 
-  function renderEmpty() {
-    const dur = state.config.mode === "test" ? "5 минут" : "10 часов";
+  function renderEmpty(slot) {
+    const dur = formatGrowthDuration(state.config.growth_duration);
     return `
       <div class="plot">
         <span class="plot-badge">Свободно</span>
-        <h2>Грядка №1</h2>
+        <h2>Грядка №${slot}</h2>
         <p class="plot-desc">Через ${dur} вырастет растение случайной редкости. Поливай сам — ускоришь рост!</p>
         ${bed("seed", true)}
-        <button class="btn btn-plant" id="plant-btn">
+        <button class="btn btn-plant plant-btn" data-slot="${slot}">
           <span>🌱 Посадить</span>
         </button>
       </div>`;
@@ -330,7 +387,7 @@
       <div class="plot plot--friend">
         <span class="plot-badge" style="background:var(--blue)">Сад друга</span>
         <h2>${name}</h2>
-        <p class="plot-desc">Полей — ускоришь рост и получишь бонус!</p>
+        <p class="plot-desc">Полей — ускоришь рост сада друга!</p>
         ${bed("leaf", false)}
         <div class="timer-box">
           <div class="timer-box__label">Осталось</div>
@@ -359,13 +416,21 @@
   }
 
   function renderStatusCard() {
-    if (state.growing) {
-      const left = remaining(state.growing.ready_at);
+    const growing = getGrowingPlants();
+    if (growing.length) {
+      const soonest = growing.reduce((a, b) =>
+        a.ready_at < b.ready_at ? a : b
+      );
+      const left = remaining(soonest.ready_at);
+      const title =
+        growing.length === 1
+          ? "Растёт на грядке"
+          : `Растёт на ${growing.length} грядках`;
       return `
         <div class="status-card" id="go-plot">
           <div class="status-card__sprite status-card__sprite--sprout"></div>
           <div class="status-card__info">
-            <div class="status-card__title">Растёт на грядке</div>
+            <div class="status-card__title">${title}</div>
             <div class="status-card__sub">Осталось ${formatTime(left)}</div>
           </div>
           <div class="status-card__arrow">→</div>
@@ -419,12 +484,19 @@
   }
 
   function renderPlotTab() {
-    let html = `<div class="page-head">🌱 Грядка</div>`;
+    const plotCount = getPlotCount();
+    const growing = getGrowingPlants();
+    const bySlot = Object.fromEntries(
+      growing.map((p) => [p.plot_slot || 1, p])
+    );
+    let html = `<div class="page-head">🌱 Грядки (${plotCount})</div>`;
     const friendRef = parseRef();
     const isFriend = friendRef && friendRef !== state.user.ref_code;
     if (isFriend) html += `<div id="friend-section"></div>`;
-    if (state.growing) html += renderGrowing(state.growing);
-    else html += renderEmpty();
+    for (let slot = 1; slot <= plotCount; slot++) {
+      if (bySlot[slot]) html += renderGrowing(bySlot[slot], slot);
+      else html += renderEmpty(slot);
+    }
     return html;
   }
 
@@ -498,27 +570,41 @@
   }
 
   function renderShopTab() {
-    const coins = state.user.coins;
-    const items = UPGRADES.map((u, i) => {
-      const canBuy = coins >= u.price;
-      return `
-        <div class="upgrade-card upgrade-card--locked" style="animation-delay:${i * 0.05}s">
-          <div class="upgrade-card__icon">${u.icon}</div>
+    const shop = state.shop || {};
+    const order = ["plot", "speed", "water_can"];
+    const items = order
+      .map((id, i) => {
+        const meta = UPGRADE_META[id];
+        const s = shop[id] || {};
+        const maxed = id === "plot" ? false : s.level >= s.max;
+        const price = s.price;
+        const canBuy = s.can_buy;
+        let action = "";
+        if (maxed) {
+          action = `<div class="upgrade-card__badge">Макс.</div>`;
+        } else if (canBuy) {
+          action = `<button class="upgrade-card__buy buy-btn" data-upgrade="${id}">${formatNum(price)} ${coinHtml(true)}</button>`;
+        } else {
+          action = `<div class="upgrade-card__badge">${formatNum(price)} ${coinHtml(true)}</div>`;
+        }
+        return `
+        <div class="upgrade-card${maxed ? " upgrade-card--maxed" : ""}" style="animation-delay:${i * 0.05}s">
+          <div class="upgrade-card__icon">${meta.icon}</div>
           <div class="upgrade-card__body">
-            <div class="upgrade-card__name">${u.name}</div>
-            <div class="upgrade-card__desc">${u.desc}</div>
+            <div class="upgrade-card__name">${meta.name}</div>
+            <div class="upgrade-card__desc">${meta.desc(s)}</div>
           </div>
-          <div class="upgrade-card__badge">Скоро</div>
+          ${action}
         </div>`;
-    }).join("");
+      })
+      .join("");
     return `
       <div class="page-head">⚡ Улучшения</div>
       <div class="page-card">
         <h3>Магазин сада</h3>
-        <p>Трать монеты на улучшения — больше грядок, быстрее рост, круче бонусы.</p>
+        <p>На счету: ${formatNum(state.user.coins)} ${coinHtml(true)}. Монеты за рефералов — на грядки и усиления.</p>
       </div>
-      ${items}
-      <p class="shop-soon">Покупки появятся в следующем обновлении 🛠</p>`;
+      ${items}`;
   }
 
   function setTab(tab) {
@@ -575,8 +661,17 @@
   }
 
   function bindEvents() {
-    $("#plant-btn")?.addEventListener("click", plantSeed);
-    $("#self-water-btn")?.addEventListener("click", waterSelf);
+    document.querySelectorAll(".plant-btn").forEach((btn) => {
+      btn.addEventListener("click", () => plantSeed(parseInt(btn.dataset.slot, 10)));
+    });
+    document.querySelectorAll(".self-water-btn").forEach((btn) => {
+      btn.addEventListener("click", () =>
+        waterSelf(parseInt(btn.dataset.plantId, 10), btn)
+      );
+    });
+    document.querySelectorAll(".buy-btn").forEach((btn) => {
+      btn.addEventListener("click", () => buyUpgrade(btn.dataset.upgrade, btn));
+    });
     $("#copy-ref")?.addEventListener("click", copyRef);
     $("#go-plot")?.addEventListener("click", () => setTab("plot"));
 
@@ -590,13 +685,15 @@
     navigator.clipboard.writeText(link).then(() => toast("Ссылка скопирована! 🎁"));
   }
 
-  async function plantSeed() {
-    const btn = $("#plant-btn");
+  async function plantSeed(slot) {
+    const btn = document.querySelector(`.plant-btn[data-slot="${slot}"]`);
     if (btn) btn.disabled = true;
     try {
-      const data = await api("POST", "/api/plant");
-      state.growing = data.plant;
-      state.self_water = { can_water: true, wait_seconds: 0 };
+      const data = await api("POST", `/api/plant?slot=${slot}`);
+      const plants = getGrowingPlants().filter((p) => p.plot_slot !== slot);
+      plants.push(data.plant);
+      state.growing_plants = plants.sort((a, b) => a.plot_slot - b.plot_slot);
+      state.growing = state.growing_plants[0] || null;
       render();
       toast("Семечко посажено! 🌱");
     } catch (e) {
@@ -605,13 +702,14 @@
     }
   }
 
-  async function waterSelf() {
-    const btn = $("#self-water-btn");
+  async function waterSelf(plantId, btnEl) {
+    const btn = btnEl || document.querySelector(`.self-water-btn[data-plant-id="${plantId}"]`);
     if (btn) btn.disabled = true;
     try {
-      const res = await api("POST", "/api/water-self");
+      const res = await api("POST", `/api/water-self?plant_id=${plantId}`);
       waterSplash();
-      if (state.growing) state.growing.ready_at = res.new_ready_at;
+      const plant = getGrowingPlants().find((p) => p.id === plantId);
+      if (plant) plant.ready_at = res.new_ready_at;
       state.self_water = { can_water: false, wait_seconds: state.config.self_water_cooldown };
       toast(`Полито! −${res.reduction_percent}% времени 💧`);
       render();
@@ -625,6 +723,32 @@
     }
   }
 
+  async function buyUpgrade(id, btnEl) {
+    if (btnEl) btnEl.disabled = true;
+    try {
+      const res = await api("POST", `/api/buy/${id}`);
+      state.user.coins = res.coins;
+      state.upgrades = res.upgrades;
+      state.shop = res.shop;
+      state.config.growth_duration = res.upgrades.growth_duration;
+      state.config.self_water_reduction_percent = res.upgrades.self_water_total_percent;
+      updateHeader();
+      render();
+      const names = { plot: "Грядка", speed: "Ускорение", water_can: "Лейка" };
+      toast(`${names[id] || "Улучшение"} куплено! 🎉`);
+    } catch (e) {
+      const err = e.detail?.error || e.error;
+      const msg =
+        err === "not_enough_coins"
+          ? "Не хватает монет"
+          : err === "max_level"
+          ? "Уже максимум"
+          : "Не удалось купить";
+      toast(msg);
+      if (btnEl) btnEl.disabled = false;
+    }
+  }
+
   async function waterFriend(ownerRef, plant) {
     const btn = $("#water-btn");
     if (btn) btn.disabled = true;
@@ -634,7 +758,7 @@
         `/api/water/${plant.id}?owner_ref=${ownerRef}`
       );
       waterSplash();
-      toast(`+${res.bonus_coins} монет! Спасибо за полив!`);
+      toast("Спасибо за полив! 💧");
       await refresh();
     } catch (e) {
       const msg =
@@ -666,48 +790,55 @@
       if (counter) counter.textContent = formatNum(getGlobalDisplayCount());
     }
 
-    if (state.growing) {
-      const left = remaining(state.growing.ready_at);
-      const t = $("#timer");
-      const p = $("#progress");
-      const ft = $("#friend-timer");
+    const growing = getGrowingPlants();
+    if (growing.length) {
+      let anyReady = false;
+      const soonest = growing.reduce((a, b) =>
+        a.ready_at < b.ready_at ? a : b
+      );
 
-      if (t) t.textContent = formatTime(left);
-      if (p)
-        p.style.width =
-          progress(state.growing.planted_at, state.growing.ready_at) + "%";
+      for (const plant of growing) {
+        const left = remaining(plant.ready_at);
+        const t = document.querySelector(`.plant-timer[data-plant-id="${plant.id}"]`);
+        const p = document.querySelector(`.plant-progress[data-plant-id="${plant.id}"]`);
+        if (t) t.textContent = formatTime(left);
+        if (p) p.style.width = progress(plant.planted_at, plant.ready_at) + "%";
+        if (left <= 0) anyReady = true;
+      }
+
+      const ft = $("#friend-timer");
       if (ft && state._friendPlant)
         ft.textContent = formatTime(remaining(state._friendPlant.ready_at));
 
       const statusSub = document.querySelector(".status-card__sub");
       if (statusSub && currentTab === "garden")
-        statusSub.textContent = `Осталось ${formatTime(left)}`;
+        statusSub.textContent = `Осталось ${formatTime(remaining(soonest.ready_at))}`;
 
-      if (left <= 0 && !refreshing) refresh(true);
+      if (anyReady && !refreshing) refresh(true);
     }
 
     if (
-      state.growing &&
+      growing.length &&
       !state.self_water?.can_water &&
       state.self_water?.wait_seconds > 0
     ) {
       state.self_water.wait_seconds = Math.max(0, state.self_water.wait_seconds - 1);
+      const pct = getSelfWaterPercent();
       if (state.self_water.wait_seconds <= 0) {
         state.self_water.can_water = true;
         if (currentTab === "plot") {
-          const btn = $("#self-water-btn");
-          const pct = state.config.self_water_reduction_percent;
-          if (btn) {
+          document.querySelectorAll(".self-water-btn").forEach((btn) => {
             btn.disabled = false;
             btn.innerHTML = `<span>💧 Полить своё растение</span>`;
-          }
-          const sub = document.querySelector(".btn-water__sub");
-          if (sub) sub.textContent = `Ускорит рост на ${pct}%`;
+          });
+          document.querySelectorAll(".btn-water__sub").forEach((sub) => {
+            sub.textContent = `Ускорит рост на ${pct}%`;
+          });
         }
       } else if (currentTab === "plot") {
-        const btn = $("#self-water-btn");
-        if (btn)
+        document.querySelectorAll(".self-water-btn").forEach((btn) => {
           btn.innerHTML = `<span>💧 Полив через ${formatTime(state.self_water.wait_seconds)}</span>`;
+        });
       }
     }
   }
@@ -727,7 +858,9 @@
     refreshing = true;
     try {
       const globalStats = state?.global_stats || readGlobalStatsCache();
-      const prevGrowingId = fromMaturity ? state?.growing?.id : null;
+      const prevGrowingIds = fromMaturity
+        ? new Set(getGrowingPlants().map((p) => p.id))
+        : null;
       const prevReadyIds = new Set((state?.ready_plants || []).map((p) => p.id));
       const ref = parseRef();
       const q = ref ? `?ref=${ref}` : "";
@@ -736,9 +869,9 @@
       updateHeader();
       render();
 
-      if (prevGrowingId && !state.growing) {
-        const newPlant = state.ready_plants.find((p) => !prevReadyIds.has(p.id));
-        if (newPlant) showHarvestModal(newPlant);
+      if (fromMaturity && prevGrowingIds) {
+        const newPlants = state.ready_plants.filter((p) => !prevReadyIds.has(p.id));
+        newPlants.forEach((plant) => queueHarvestModal(plant));
       }
     } finally {
       refreshing = false;

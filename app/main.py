@@ -16,10 +16,14 @@ from app.bot_setup import create_bot, create_dispatcher
 from app.ref_code import encode_ref, make_ref_param, resolve_ref
 from app.services import (
     build_display_name,
+    build_shop_state,
+    build_upgrades_info,
+    buy_upgrade,
     finalize_ready_plants,
     get_friend_growing_plant,
     get_global_growth_window,
     get_growing_plant,
+    get_growing_plants,
     get_or_create_user,
     get_ready_plants,
     get_self_water_status,
@@ -183,12 +187,15 @@ async def api_me(
     )
     await finalize_ready_plants(db_user["id"])
 
-    growing = await get_growing_plant(db_user["id"])
+    growing_plants = await get_growing_plants(db_user["id"])
+    growing = growing_plants[0] if growing_plants else None
     ready = await get_ready_plants(db_user["id"])
     stats = await get_user_stats(db_user["id"])
     self_water = await get_self_water_status(db_user["id"])
     settings = get_settings()
     ref_code = encode_ref(telegram_id)
+    upgrades = build_upgrades_info(db_user, settings)
+    shop = build_shop_state(db_user)
 
     return {
         "user": {
@@ -200,14 +207,17 @@ async def api_me(
             "is_new": is_new,
         },
         "growing": growing,
+        "growing_plants": growing_plants,
         "ready_plants": ready,
         "stats": stats,
         "self_water": self_water,
+        "upgrades": upgrades,
+        "shop": shop,
         "config": {
-            "growth_duration": settings.growth_duration,
+            "growth_duration": upgrades["growth_duration"],
             "water_cooldown": settings.water_cooldown,
             "self_water_cooldown": settings.self_water_cooldown,
-            "self_water_reduction_percent": settings.self_water_reduction_percent,
+            "self_water_reduction_percent": upgrades["self_water_total_percent"],
             "mode": settings.mode,
             "dev_mode": settings.dev_mode,
         },
@@ -217,15 +227,30 @@ async def api_me(
 
 
 @app.post("/api/plant")
-async def api_plant(tg_user: dict = Depends(get_tg_user)):
+async def api_plant(
+    tg_user: dict = Depends(get_tg_user),
+    slot: int = Query(1, ge=1),
+):
     user = await get_user_by_telegram(tg_user["id"])
     if not user:
         raise HTTPException(404, "User not found")
 
-    plant = await plant_seed(user["id"])
+    plant = await plant_seed(user["id"], slot)
     if not plant:
-        raise HTTPException(400, "Already growing")
+        raise HTTPException(400, "Slot busy or invalid")
     return {"plant": plant}
+
+
+@app.post("/api/buy/{upgrade_id}")
+async def api_buy(upgrade_id: str, tg_user: dict = Depends(get_tg_user)):
+    user = await get_user_by_telegram(tg_user["id"])
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    result = await buy_upgrade(user["id"], upgrade_id)
+    if not result["ok"]:
+        raise HTTPException(400, detail=result)
+    return result
 
 
 @app.get("/api/friend/{ref_code}")
@@ -271,16 +296,15 @@ async def api_water(
 
 
 @app.post("/api/water-self")
-async def api_water_self(tg_user: dict = Depends(get_tg_user)):
+async def api_water_self(
+    tg_user: dict = Depends(get_tg_user),
+    plant_id: int = Query(...),
+):
     user = await get_user_by_telegram(tg_user["id"])
     if not user:
         raise HTTPException(404, "User not found")
 
-    plant = await get_growing_plant(user["id"])
-    if not plant:
-        raise HTTPException(400, "No growing plant")
-
-    result = await water_own_plant(user["id"], plant["id"])
+    result = await water_own_plant(user["id"], plant_id)
     if not result["ok"]:
         raise HTTPException(400, detail=result)
     return result

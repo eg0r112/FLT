@@ -1002,6 +1002,31 @@ body {
 }
 
 .upgrade-card--locked { opacity: 0.75; }
+.upgrade-card--maxed { opacity: 0.85; }
+
+.upgrade-card__buy {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.82rem;
+  color: var(--white);
+  background: linear-gradient(180deg, #ffa94d 0%, var(--orange) 100%);
+  border: none;
+  border-radius: 10px;
+  padding: 8px 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 3px 0 #d97706;
+}
+
+.upgrade-card__buy:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #d97706;
+}
+
+.upgrade-card__buy:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 
 .upgrade-card__icon {
   width: 52px;

@@ -12,6 +12,12 @@ from app.database import get_db
 
 NOW = lambda: int(time.time())
 
+PLOT_PRICE = 200
+SPEED_PRICES = (100, 200)
+SPEED_MAX = 2
+WATER_CAN_PRICES = (50, 100, 150)
+WATER_CAN_MAX = 3
+
 
 @lru_cache(maxsize=1)
 def _rarity_tables() -> tuple[tuple[str, ...], tuple[int, ...]]:
@@ -55,12 +61,138 @@ def roll_background() -> int:
 async def get_user_by_telegram(telegram_id: int) -> dict | None:
     db = await get_db()
     cur = await db.execute(
-        "SELECT id, telegram_id, username, display_name, referrer_id, coins, created_at "
+        "SELECT id, telegram_id, username, display_name, referrer_id, coins, "
+        "extra_plots, speed_level, water_can_level, created_at "
         "FROM users WHERE telegram_id = ?",
         (telegram_id,),
     )
     row = await cur.fetchone()
     return dict(row) if row else None
+
+
+async def get_user_by_id(user_id: int) -> dict | None:
+    db = await get_db()
+    cur = await db.execute(
+        "SELECT id, telegram_id, username, display_name, referrer_id, coins, "
+        "extra_plots, speed_level, water_can_level, created_at "
+        "FROM users WHERE id = ?",
+        (user_id,),
+    )
+    row = await cur.fetchone()
+    return dict(row) if row else None
+
+
+def plot_count(user: dict) -> int:
+    return 1 + int(user.get("extra_plots") or 0)
+
+
+def growth_duration_for_user(settings, user: dict) -> int:
+    level = int(user.get("speed_level") or 0)
+    base = settings.growth_duration
+    return max(30, int(base * (1 - 0.15 * level)))
+
+
+def self_water_percent(settings, user: dict) -> int:
+    bonus = int(user.get("water_can_level") or 0) * 10
+    return settings.self_water_reduction_percent + bonus
+
+
+def build_upgrades_info(user: dict, settings) -> dict:
+    speed_level = int(user.get("speed_level") or 0)
+    water_level = int(user.get("water_can_level") or 0)
+    extra = int(user.get("extra_plots") or 0)
+    return {
+        "extra_plots": extra,
+        "plot_count": 1 + extra,
+        "speed_level": speed_level,
+        "speed_max": SPEED_MAX,
+        "water_can_level": water_level,
+        "water_can_max": WATER_CAN_MAX,
+        "growth_reduction_percent": speed_level * 15,
+        "self_water_bonus_percent": water_level * 10,
+        "self_water_total_percent": self_water_percent(settings, user),
+        "growth_duration": growth_duration_for_user(settings, user),
+    }
+
+
+def build_shop_state(user: dict) -> dict:
+    coins = int(user["coins"])
+    extra = int(user.get("extra_plots") or 0)
+    speed = int(user.get("speed_level") or 0)
+    water = int(user.get("water_can_level") or 0)
+    speed_price = SPEED_PRICES[speed] if speed < SPEED_MAX else None
+    water_price = WATER_CAN_PRICES[water] if water < WATER_CAN_MAX else None
+    return {
+        "plot": {
+            "price": PLOT_PRICE,
+            "owned": extra,
+            "can_buy": coins >= PLOT_PRICE,
+        },
+        "speed": {
+            "level": speed,
+            "max": SPEED_MAX,
+            "price": speed_price,
+            "can_buy": speed < SPEED_MAX and speed_price is not None and coins >= speed_price,
+        },
+        "water_can": {
+            "level": water,
+            "max": WATER_CAN_MAX,
+            "price": water_price,
+            "can_buy": water < WATER_CAN_MAX and water_price is not None and coins >= water_price,
+        },
+    }
+
+
+async def buy_upgrade(user_id: int, upgrade_type: str) -> dict:
+    user = await get_user_by_id(user_id)
+    if not user:
+        return {"ok": False, "error": "user_not_found"}
+
+    db = await get_db()
+    coins = int(user["coins"])
+
+    if upgrade_type == "plot":
+        if coins < PLOT_PRICE:
+            return {"ok": False, "error": "not_enough_coins"}
+        await db.execute(
+            "UPDATE users SET coins = coins - ?, extra_plots = extra_plots + 1 WHERE id = ?",
+            (PLOT_PRICE, user_id),
+        )
+    elif upgrade_type == "speed":
+        level = int(user.get("speed_level") or 0)
+        if level >= SPEED_MAX:
+            return {"ok": False, "error": "max_level"}
+        price = SPEED_PRICES[level]
+        if coins < price:
+            return {"ok": False, "error": "not_enough_coins"}
+        await db.execute(
+            "UPDATE users SET coins = coins - ?, speed_level = speed_level + 1 WHERE id = ?",
+            (price, user_id),
+        )
+    elif upgrade_type == "water_can":
+        level = int(user.get("water_can_level") or 0)
+        if level >= WATER_CAN_MAX:
+            return {"ok": False, "error": "max_level"}
+        price = WATER_CAN_PRICES[level]
+        if coins < price:
+            return {"ok": False, "error": "not_enough_coins"}
+        await db.execute(
+            "UPDATE users SET coins = coins - ?, water_can_level = water_can_level + 1 WHERE id = ?",
+            (price, user_id),
+        )
+    else:
+        return {"ok": False, "error": "unknown_upgrade"}
+
+    await db.commit()
+    updated = await get_user_by_id(user_id)
+    assert updated is not None
+    settings = get_settings()
+    return {
+        "ok": True,
+        "coins": updated["coins"],
+        "upgrades": build_upgrades_info(updated, settings),
+        "shop": build_shop_state(updated),
+    }
 
 
 def build_display_name(tg_user: dict) -> str:
@@ -140,12 +272,28 @@ async def get_or_create_user(
     return user, True
 
 
-async def get_growing_plant(user_id: int) -> dict | None:
+async def get_growing_plants(user_id: int) -> list[dict]:
     db = await get_db()
     cur = await db.execute(
-        "SELECT id, user_id, status, rarity, background_id, planted_at, ready_at "
-        "FROM plants WHERE user_id = ? AND status = 'growing' LIMIT 1",
+        "SELECT id, user_id, status, rarity, background_id, planted_at, ready_at, plot_slot "
+        "FROM plants WHERE user_id = ? AND status = 'growing' ORDER BY plot_slot",
         (user_id,),
+    )
+    rows = await cur.fetchall()
+    return [dict(r) for r in rows]
+
+
+async def get_growing_plant(user_id: int) -> dict | None:
+    plants = await get_growing_plants(user_id)
+    return plants[0] if plants else None
+
+
+async def get_growing_plant_by_id(user_id: int, plant_id: int) -> dict | None:
+    db = await get_db()
+    cur = await db.execute(
+        "SELECT id, user_id, status, rarity, background_id, planted_at, ready_at, plot_slot "
+        "FROM plants WHERE user_id = ? AND id = ? AND status = 'growing'",
+        (user_id, plant_id),
     )
     row = await cur.fetchone()
     return dict(row) if row else None
@@ -154,7 +302,7 @@ async def get_growing_plant(user_id: int) -> dict | None:
 async def get_ready_plants(user_id: int) -> list[dict]:
     db = await get_db()
     cur = await db.execute(
-        "SELECT id, user_id, status, rarity, background_id, planted_at, ready_at "
+        "SELECT id, user_id, status, rarity, background_id, planted_at, ready_at, plot_slot "
         "FROM plants WHERE user_id = ? AND status = 'ready' ORDER BY ready_at DESC",
         (user_id,),
     )
@@ -162,20 +310,30 @@ async def get_ready_plants(user_id: int) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-async def plant_seed(user_id: int) -> dict | None:
-    """Plant a new seed if user has no growing plant."""
-    existing = await get_growing_plant(user_id)
-    if existing:
+async def plant_seed(user_id: int, plot_slot: int = 1) -> dict | None:
+    """Plant a seed on a plot slot if it's free."""
+    user = await get_user_by_id(user_id)
+    if not user:
+        return None
+    if plot_slot < 1 or plot_slot > plot_count(user):
+        return None
+
+    db = await get_db()
+    cur = await db.execute(
+        "SELECT id FROM plants WHERE user_id = ? AND plot_slot = ? AND status = 'growing'",
+        (user_id, plot_slot),
+    )
+    if await cur.fetchone():
         return None
 
     settings = get_settings()
     now = NOW()
-    ready_at = now + settings.growth_duration
+    ready_at = now + growth_duration_for_user(settings, user)
 
-    db = await get_db()
     cur = await db.execute(
-        "INSERT INTO plants (user_id, status, planted_at, ready_at) VALUES (?, 'growing', ?, ?)",
-        (user_id, now, ready_at),
+        "INSERT INTO plants (user_id, status, planted_at, ready_at, plot_slot) "
+        "VALUES (?, 'growing', ?, ?, ?)",
+        (user_id, now, ready_at, plot_slot),
     )
     await db.commit()
     return {
@@ -186,27 +344,35 @@ async def plant_seed(user_id: int) -> dict | None:
         "background_id": None,
         "planted_at": now,
         "ready_at": ready_at,
+        "plot_slot": plot_slot,
     }
 
 
 async def finalize_ready_plants(user_id: int) -> list[dict]:
-    """Check growing plant and finalize if time elapsed."""
-    plant = await get_growing_plant(user_id)
-    if not plant or plant["ready_at"] > NOW():
+    """Finalize all growing plants whose time has elapsed."""
+    db = await get_db()
+    now = NOW()
+    cur = await db.execute(
+        "SELECT id, user_id, status, rarity, background_id, planted_at, ready_at, plot_slot "
+        "FROM plants WHERE user_id = ? AND status = 'growing' AND ready_at <= ?",
+        (user_id, now),
+    )
+    plants = [dict(r) for r in await cur.fetchall()]
+    if not plants:
         return []
 
-    rarity = roll_rarity()
-    bg = roll_background()
-    db = await get_db()
-    await db.execute(
-        "UPDATE plants SET status = 'ready', rarity = ?, background_id = ? WHERE id = ?",
-        (rarity, bg, plant["id"]),
-    )
+    for plant in plants:
+        rarity = roll_rarity()
+        bg = roll_background()
+        await db.execute(
+            "UPDATE plants SET status = 'ready', rarity = ?, background_id = ? WHERE id = ?",
+            (rarity, bg, plant["id"]),
+        )
+        plant["status"] = "ready"
+        plant["rarity"] = rarity
+        plant["background_id"] = bg
     await db.commit()
-    plant["status"] = "ready"
-    plant["rarity"] = rarity
-    plant["background_id"] = bg
-    return [plant]
+    return plants
 
 
 async def get_friend_growing_plant(owner_telegram_id: int) -> dict | None:
@@ -256,8 +422,12 @@ async def get_self_water_status(user_id: int) -> dict:
 
 async def water_own_plant(user_id: int, plant_id: int) -> dict:
     settings = get_settings()
-    plant = await get_growing_plant(user_id)
-    if not plant or plant["id"] != plant_id:
+    user = await get_user_by_id(user_id)
+    if not user:
+        return {"ok": False, "error": "user_not_found"}
+
+    plant = await get_growing_plant_by_id(user_id, plant_id)
+    if not plant:
         return {"ok": False, "error": "plant_not_found"}
 
     status = await get_self_water_status(user_id)
@@ -269,12 +439,12 @@ async def water_own_plant(user_id: int, plant_id: int) -> dict:
         }
 
     now = NOW()
-    remaining = max(0, plant["ready_at"] - now)
-    if remaining <= 0:
+    remaining_sec = max(0, plant["ready_at"] - now)
+    if remaining_sec <= 0:
         return {"ok": False, "error": "already_ready"}
 
-    pct = settings.self_water_reduction_percent
-    saved = int(remaining * pct / 100)
+    pct = self_water_percent(settings, user)
+    saved = int(remaining_sec * pct / 100)
     new_ready = max(now, plant["ready_at"] - saved)
 
     db = await get_db()
@@ -327,15 +497,10 @@ async def water_plant(
         "UPDATE plants SET ready_at = ? WHERE id = ?",
         (new_ready, plant_id),
     )
-    await db.execute(
-        "UPDATE users SET coins = coins + ? WHERE id = ?",
-        (settings.water_bonus, waterer_id),
-    )
     await db.commit()
 
     return {
         "ok": True,
-        "bonus_coins": settings.water_bonus,
         "new_ready_at": new_ready,
         "time_saved": settings.water_time_reduction,
     }
