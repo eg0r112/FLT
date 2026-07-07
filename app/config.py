@@ -10,6 +10,12 @@ def _default_db_path() -> str:
     return "data/garden.db"
 
 
+def _default_database_url() -> str:
+    if os.environ.get("AMVERA"):
+        return ""
+    return "postgresql://garden:garden@127.0.0.1:5432/garden"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -20,7 +26,7 @@ class Settings(BaseSettings):
     cors_origins: str = "*"
     secret_key: str = "change-me"
 
-    mode: str = "prod"
+    mode: str = "test"
     dev_mode: bool = False
     dev_user_id: int = 1001
     dev_username: str = "local"
@@ -51,7 +57,7 @@ class Settings(BaseSettings):
     ref_add: int = 52849
 
     db_path: str = _default_db_path()
-    database_url: str = ""
+    database_url: str = _default_database_url()
     redis_url: str = ""
     run_mode: str = "both"
     workers: int = 1
