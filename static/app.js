@@ -82,25 +82,25 @@
   };
 
   const BACKGROUND_MARKET = {
-    1: { name: "Синий", weight: 22, mult: 1.0, color: "#2563b8", colorDark: "#1e3a8a", tile: "1.png", tileSize: 52 },
-    2: { name: "Зелёный", weight: 18, mult: 1.08, color: "#059669", colorDark: "#065f46", tile: "2.png", tileSize: 52 },
-    3: { name: "Сад", weight: 15, mult: 1.15 },
-    4: { name: "Рассвет", weight: 11, mult: 1.28 },
-    5: { name: "Закат", weight: 10, mult: 1.42 },
-    6: { name: "Туман", weight: 8, mult: 1.6 },
-    7: { name: "Горы", weight: 6, mult: 1.9 },
-    8: { name: "Космос", weight: 4, mult: 2.4 },
-    9: { name: "Кристалл", weight: 3, mult: 3.0 },
-    10: { name: "Сияние", weight: 2, mult: 3.8 },
+    1: { name: "Алмаз", weight: 22, mult: 1.0, color: "#bc5e80", colorDark: "#743a4f", tile: "1.png", tileSize: 128 },
+    2: { name: "Лапка", weight: 18, mult: 1.08, color: "#5368bb", colorDark: "#334073", tile: "2.png", tileSize: 128 },
+    3: { name: "Зверь", weight: 15, mult: 1.15, color: "#7c4b3f", colorDark: "#4c2e27", tile: "3.png", tileSize: 128 },
+    4: { name: "Горшок", weight: 11, mult: 1.28, color: "#458072", colorDark: "#2a4f46", tile: "4.png", tileSize: 128 },
+    5: { name: "Сердце", weight: 10, mult: 1.42, color: "#c27645", colorDark: "#78492a", tile: "5.png", tileSize: 128 },
+    6: { name: "Лист", weight: 8, mult: 1.6, color: "#768558", colorDark: "#495236", tile: "6.png", tileSize: 128 },
+    7: { name: "Бабочка", weight: 6, mult: 1.9, color: "#828691", colorDark: "#505359", tile: "7.png", tileSize: 128 },
+    8: { name: "Инь-ян", weight: 4, mult: 2.4, color: "#5e8a95", colorDark: "#3a555c", tile: "8.png", tileSize: 128 },
+    9: { name: "Кубок", weight: 3, mult: 3.0, color: "#41563d", colorDark: "#283525", tile: "9.png", tileSize: 128 },
+    10: { name: "Лилия", weight: 2, mult: 3.8, color: "#6767dc", colorDark: "#3f3f88", tile: "10.png", tileSize: 128 },
   };
 
   function plantBgAttrs(backgroundId) {
     const bg = BACKGROUND_MARKET[backgroundId] || BACKGROUND_MARKET[1];
     if (!bg.tile) return { classExtra: "", style: "" };
-    const size = bg.tileSize || 52;
+    const size = bg.tileSize || 128;
     return {
       classExtra: " seed-card--tiled",
-      style: `--bg-c1:${bg.color};--bg-c2:${bg.colorDark};--bg-tile:url(/static/images/bg/${bg.tile});--bg-tile-size:${size}px;`,
+      style: `--bg-tile:url(/static/images/bg/${bg.tile});--bg-tile-size:${size}px;`,
     };
   }
 
@@ -502,7 +502,7 @@
         <div class="harvest-modal__plant seed-card--${rarity}${tile.classExtra}" style="${tile.style}">
           <div class="harvest-modal__emoji">${RARITY_EMOJI[rarity] || "🌿"}</div>
           <div class="harvest-modal__tag tag-${rarity}">${RARITY_LABEL[rarity] || rarity}</div>
-          <div class="harvest-modal__bg">${bg.name} · фон №${plant.background_id}</div>
+          <div class="harvest-modal__bg">${bg.name}</div>
           <div class="harvest-modal__price">≈ ${formatNum(price)} ${coinHtml(true)}</div>
         </div>
         <button class="harvest-modal__btn" type="button">Ура! 🌼</button>
@@ -711,7 +711,7 @@
       <div class="seed-card seed-card--${p.rarity}${tile.classExtra}" style="animation-delay:${i * 0.05}s;${tile.style}">
         <div class="seed-card__emoji">${RARITY_EMOJI[p.rarity] || "🌿"}</div>
         <div class="seed-card__tag tag-${p.rarity}">${RARITY_LABEL[p.rarity] || p.rarity}</div>
-        <div class="seed-card__bg">${bg.name} · фон №${p.background_id}</div>
+        <div class="seed-card__bg">${bg.name}</div>
         <div class="seed-card__bg">≈ ${formatNum(price)} ${coinHtml(true)}</div>
       </div>`;
     }
