@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     bot_username: str = ""
     webapp_url: str = "http://localhost:8000"
     telegram_proxy: str = ""
+    telegram_timeout: int = 90
     cors_origins: str = "*"
     secret_key: str = "change-me"
 
