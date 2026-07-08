@@ -82,8 +82,8 @@
   };
 
   const BACKGROUND_MARKET = {
-    1: { name: "Луг", weight: 22, mult: 1.0 },
-    2: { name: "Роса", weight: 18, mult: 1.08 },
+    1: { name: "Синий", weight: 22, mult: 1.0, color: "#2563b8", colorDark: "#1e3a8a", tile: "1.png", tileSize: 52 },
+    2: { name: "Зелёный", weight: 18, mult: 1.08, color: "#059669", colorDark: "#065f46", tile: "2.png", tileSize: 52 },
     3: { name: "Сад", weight: 15, mult: 1.15 },
     4: { name: "Рассвет", weight: 11, mult: 1.28 },
     5: { name: "Закат", weight: 10, mult: 1.42 },
@@ -93,6 +93,16 @@
     9: { name: "Кристалл", weight: 3, mult: 3.0 },
     10: { name: "Сияние", weight: 2, mult: 3.8 },
   };
+
+  function plantBgAttrs(backgroundId) {
+    const bg = BACKGROUND_MARKET[backgroundId] || BACKGROUND_MARKET[1];
+    if (!bg.tile) return { classExtra: "", style: "" };
+    const size = bg.tileSize || 52;
+    return {
+      classExtra: " seed-card--tiled",
+      style: `--bg-c1:${bg.color};--bg-c2:${bg.colorDark};--bg-tile:url(/static/images/bg/${bg.tile});--bg-tile-size:${size}px;`,
+    };
+  }
 
   const GLOBAL_STATS_CACHE_KEY = "garden_global_stats_v1";
   const LEADERBOARD_CACHE_KEY = "garden_leaderboard_v1";
@@ -482,13 +492,14 @@
     const bg = BACKGROUND_MARKET[plant.background_id] || BACKGROUND_MARKET[1];
     const price = getPlantPrice(plant);
     const rarity = plant.rarity || "common";
+    const tile = plantBgAttrs(plant.background_id);
     const overlay = document.createElement("div");
     overlay.className = "harvest-overlay";
     overlay.innerHTML = `
       <div class="harvest-modal" role="dialog" aria-modal="true">
         <div class="harvest-modal__title">🎉 Растение выросло!</div>
         <div class="harvest-modal__sub">Новый урожай в коллекции</div>
-        <div class="harvest-modal__plant seed-card--${rarity}">
+        <div class="harvest-modal__plant seed-card--${rarity}${tile.classExtra}" style="${tile.style}">
           <div class="harvest-modal__emoji">${RARITY_EMOJI[rarity] || "🌿"}</div>
           <div class="harvest-modal__tag tag-${rarity}">${RARITY_LABEL[rarity] || rarity}</div>
           <div class="harvest-modal__bg">${bg.name} · фон №${plant.background_id}</div>
@@ -695,8 +706,9 @@
         (p, i) => {
       const bg = BACKGROUND_MARKET[p.background_id] || BACKGROUND_MARKET[1];
       const price = getPlantPrice(p);
+      const tile = plantBgAttrs(p.background_id);
       return `
-      <div class="seed-card seed-card--${p.rarity}" style="animation-delay:${i * 0.05}s">
+      <div class="seed-card seed-card--${p.rarity}${tile.classExtra}" style="animation-delay:${i * 0.05}s;${tile.style}">
         <div class="seed-card__emoji">${RARITY_EMOJI[p.rarity] || "🌿"}</div>
         <div class="seed-card__tag tag-${p.rarity}">${RARITY_LABEL[p.rarity] || p.rarity}</div>
         <div class="seed-card__bg">${bg.name} · фон №${p.background_id}</div>

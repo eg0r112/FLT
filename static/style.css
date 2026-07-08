@@ -714,7 +714,23 @@ body {
 .seed-card--uncommon { border-color: var(--rarity-uncommon); }
 .seed-card--rare { border-color: var(--rarity-rare); }
 .seed-card--epic { border-color: var(--rarity-epic); }
-.seed-card--legendary { border-color: var(--rarity-legendary); background: linear-gradient(180deg, #fff9db, var(--white)); }
+.seed-card--legendary { border-color: var(--rarity-legendary); }
+
+.seed-card--tiled {
+  background-image: linear-gradient(180deg, var(--bg-c1) 0%, var(--bg-c2) 100%), var(--bg-tile);
+  background-repeat: repeat;
+  background-size: var(--bg-tile-size) var(--bg-tile-size);
+  color: #fff;
+}
+
+.seed-card--tiled .seed-card__bg {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.seed-card--tiled .seed-card__tag {
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+}
 
 .seed-card__emoji { font-size: 1.8rem; margin-bottom: 4px; }
 
