@@ -82,16 +82,16 @@
   };
 
   const BACKGROUND_MARKET = {
-    1: { name: "Алмаз", weight: 22, mult: 1.0, image: "1.png" },
-    2: { name: "Лапка", weight: 18, mult: 1.08, image: "2.png" },
-    3: { name: "Зверь", weight: 15, mult: 1.15, image: "3.png" },
-    4: { name: "Горшок", weight: 11, mult: 1.28, image: "4.png" },
-    5: { name: "Сердце", weight: 10, mult: 1.42, image: "5.png" },
-    6: { name: "Лист", weight: 8, mult: 1.6, image: "6.png" },
-    7: { name: "Бабочка", weight: 6, mult: 1.9, image: "7.png" },
-    8: { name: "Инь-ян", weight: 4, mult: 2.4, image: "8.png" },
-    9: { name: "Кубок", weight: 3, mult: 3.0, image: "9.png" },
-    10: { name: "Лилия", weight: 2, mult: 3.8, image: "10.png" },
+    1: { name: "Фон 10", weight: 22, mult: 1.0, image: "1.jpg" },
+    2: { name: "Фон 8", weight: 18, mult: 1.08, image: "2.jpg" },
+    3: { name: "Фон 1", weight: 15, mult: 1.15, image: "3.jpg" },
+    4: { name: "Фон 3", weight: 11, mult: 1.28, image: "4.jpg" },
+    5: { name: "Фон 7", weight: 10, mult: 1.42, image: "5.jpg" },
+    6: { name: "Фон 6", weight: 8, mult: 1.6, image: "6.jpg" },
+    7: { name: "Фон 5", weight: 6, mult: 1.9, image: "7.jpg" },
+    8: { name: "Фон 4", weight: 4, mult: 2.4, image: "8.jpg" },
+    9: { name: "Фон 9", weight: 3, mult: 3.0, image: "9.jpg" },
+    10: { name: "Фон 2", weight: 2, mult: 3.8, image: "10.jpg" },
   };
 
   function plantBgAttrs(backgroundId) {
