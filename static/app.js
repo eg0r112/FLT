@@ -82,25 +82,24 @@
   };
 
   const BACKGROUND_MARKET = {
-    1: { name: "Алмаз", weight: 22, mult: 1.0, color: "#bc5e80", colorDark: "#743a4f", tile: "1.png", tileSize: 128 },
-    2: { name: "Лапка", weight: 18, mult: 1.08, color: "#5368bb", colorDark: "#334073", tile: "2.png", tileSize: 128 },
-    3: { name: "Зверь", weight: 15, mult: 1.15, color: "#7c4b3f", colorDark: "#4c2e27", tile: "3.png", tileSize: 128 },
-    4: { name: "Горшок", weight: 11, mult: 1.28, color: "#458072", colorDark: "#2a4f46", tile: "4.png", tileSize: 128 },
-    5: { name: "Сердце", weight: 10, mult: 1.42, color: "#c27645", colorDark: "#78492a", tile: "5.png", tileSize: 128 },
-    6: { name: "Лист", weight: 8, mult: 1.6, color: "#768558", colorDark: "#495236", tile: "6.png", tileSize: 128 },
-    7: { name: "Бабочка", weight: 6, mult: 1.9, color: "#828691", colorDark: "#505359", tile: "7.png", tileSize: 128 },
-    8: { name: "Инь-ян", weight: 4, mult: 2.4, color: "#5e8a95", colorDark: "#3a555c", tile: "8.png", tileSize: 128 },
-    9: { name: "Кубок", weight: 3, mult: 3.0, color: "#41563d", colorDark: "#283525", tile: "9.png", tileSize: 128 },
-    10: { name: "Лилия", weight: 2, mult: 3.8, color: "#6767dc", colorDark: "#3f3f88", tile: "10.png", tileSize: 128 },
+    1: { name: "Алмаз", weight: 22, mult: 1.0, image: "1.png" },
+    2: { name: "Лапка", weight: 18, mult: 1.08, image: "2.png" },
+    3: { name: "Зверь", weight: 15, mult: 1.15, image: "3.png" },
+    4: { name: "Горшок", weight: 11, mult: 1.28, image: "4.png" },
+    5: { name: "Сердце", weight: 10, mult: 1.42, image: "5.png" },
+    6: { name: "Лист", weight: 8, mult: 1.6, image: "6.png" },
+    7: { name: "Бабочка", weight: 6, mult: 1.9, image: "7.png" },
+    8: { name: "Инь-ян", weight: 4, mult: 2.4, image: "8.png" },
+    9: { name: "Кубок", weight: 3, mult: 3.0, image: "9.png" },
+    10: { name: "Лилия", weight: 2, mult: 3.8, image: "10.png" },
   };
 
   function plantBgAttrs(backgroundId) {
     const bg = BACKGROUND_MARKET[backgroundId] || BACKGROUND_MARKET[1];
-    if (!bg.tile) return { classExtra: "", style: "" };
-    const size = bg.tileSize || 128;
+    if (!bg.image) return { classExtra: "", style: "" };
     return {
-      classExtra: " seed-card--tiled",
-      style: `--bg-tile:url(/static/images/bg/${bg.tile});--bg-tile-size:${size}px;`,
+      classExtra: " seed-card--bgimg",
+      style: `--bg-image:url(/static/images/bg/${bg.image});`,
     };
   }
 

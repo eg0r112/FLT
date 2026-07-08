@@ -1,10 +1,10 @@
-"""Собирает тайл фона: одна иконка по центру, много воздуха вокруг."""
+"""Готовый фон карточки в стиле TG Gifts: градиент + редкий watermark."""
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parent.parent
 ASSETS = Path(
@@ -12,9 +12,30 @@ ASSETS = Path(
 )
 OUT = ROOT / "static" / "images" / "bg"
 
-TILE = 128
-ICON_FRAC = 0.34
-ICON_ALPHA = 0.42
+CARD_W = 400
+CARD_H = 520
+ICON_SIZE = 30
+ICON_ALPHA = 0.13
+
+# Редкая сетка — много пустого места между иконками
+ICON_POSITIONS = [
+    (0.12, 0.10),
+    (0.48, 0.07),
+    (0.82, 0.14),
+    (0.22, 0.28),
+    (0.68, 0.24),
+    (0.08, 0.46),
+    (0.42, 0.42),
+    (0.78, 0.40),
+    (0.28, 0.58),
+    (0.62, 0.55),
+    (0.88, 0.62),
+    (0.15, 0.74),
+    (0.52, 0.72),
+    (0.76, 0.80),
+    (0.35, 0.90),
+    (0.65, 0.92),
+]
 
 SOURCES = [
     ("c__Users_Sasha_AppData_Roaming_Cursor_User_workspaceStorage_60881873690c70cde651f6904c1c35a2_images_image-fbf4a93e-d9ec-4a33-9e38-da16ecc1d779.png", 1, "Алмаз"),
@@ -61,26 +82,47 @@ def _bg_color(im: Image.Image) -> tuple[int, int, int]:
     return int(sum(rs) / 4), int(sum(gs) / 4), int(sum(bs) / 4)
 
 
-def _darken(rgb: tuple[int, int, int], factor: float = 0.62) -> tuple[int, int, int]:
-    return tuple(max(0, min(255, int(c * factor))) for c in rgb)
+def _lighten(rgb: tuple[int, int, int], factor: float = 1.18) -> tuple[int, int, int]:
+    return tuple(min(255, int(c * factor)) for c in rgb)
 
 
-def make_tile(src: Path, dst: Path) -> tuple[str, str]:
-    im = Image.open(src).convert("RGBA")
-    base = _bg_color(im)
-    dark = _darken(base)
+def _darken(rgb: tuple[int, int, int], factor: float = 0.55) -> tuple[int, int, int]:
+    return tuple(max(0, int(c * factor)) for c in rgb)
 
-    icon_size = max(16, int(TILE * ICON_FRAC))
-    icon = im.resize((icon_size, icon_size), Image.Resampling.LANCZOS)
+
+def _gradient(top: tuple[int, int, int], bottom: tuple[int, int, int]) -> Image.Image:
+    img = Image.new("RGB", (CARD_W, CARD_H))
+    draw = ImageDraw.Draw(img)
+    for y in range(CARD_H):
+        t = y / max(1, CARD_H - 1)
+        color = tuple(int(top[i] * (1 - t) + bottom[i] * t) for i in range(3))
+        draw.line([(0, y), (CARD_W, y)], fill=color)
+    return img.convert("RGBA")
+
+
+def _icon_stamp(src: Image.Image) -> Image.Image:
+    icon = src.resize((ICON_SIZE, ICON_SIZE), Image.Resampling.LANCZOS)
     r, g, b, a = icon.split()
     a = a.point(lambda p: int(p * ICON_ALPHA))
-    icon = Image.merge("RGBA", (r, g, b, a))
+    return Image.merge("RGBA", (r, g, b, a))
 
-    tile = Image.new("RGBA", (TILE, TILE), base + (255,))
-    x = (TILE - icon_size) // 2
-    tile.paste(icon, (x, x), icon)
-    tile.save(dst, "PNG")
-    return _hex(base), _hex(dark)
+
+def make_card_bg(src: Path, dst: Path) -> tuple[str, str]:
+    im = Image.open(src).convert("RGBA")
+    base = _bg_color(im)
+    top = _lighten(base)
+    bottom = _darken(base)
+
+    card = _gradient(top, bottom)
+    stamp = _icon_stamp(im)
+
+    for fx, fy in ICON_POSITIONS:
+        x = int(fx * CARD_W - ICON_SIZE / 2)
+        y = int(fy * CARD_H - ICON_SIZE / 2)
+        card.paste(stamp, (x, y), stamp)
+
+    card.save(dst, "PNG", optimize=True)
+    return _hex(top), _hex(bottom)
 
 
 def main() -> None:
@@ -90,7 +132,7 @@ def main() -> None:
         src = ASSETS / fname
         if not src.exists():
             raise FileNotFoundError(src)
-        c1, c2 = make_tile(src, OUT / f"{num}.png")
+        c1, c2 = make_card_bg(src, OUT / f"{num}.png")
         w, m = WEIGHTS[num]
         meta[str(num)] = {
             "name": name,
@@ -98,10 +140,9 @@ def main() -> None:
             "mult": m,
             "color": c1,
             "colorDark": c2,
-            "tile": f"{num}.png",
-            "tileSize": TILE,
+            "image": f"{num}.png",
         }
-        print(f"OK {num} {name} {c1} -> {c2}")
+        print(f"OK {num} {name}")
 
     (OUT / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
