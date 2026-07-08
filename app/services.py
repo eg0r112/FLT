@@ -9,6 +9,7 @@ from typing import Any
 
 from app.config import get_settings
 from app.database import get_db
+from app.market import plant_market_price
 
 NOW = lambda: int(time.time())
 
@@ -595,4 +596,65 @@ async def get_global_growth_window(now_ts: int | None = None) -> dict:
         "window_end": next_hour,
         "from_count": total,
         "to_count": total,
+    }
+
+
+LEADERBOARD_HOUR_KEY = "leaderboard_hour"
+LEADERBOARD_JSON_KEY = "leaderboard_json"
+
+
+async def _compute_leaderboard_top10() -> list[dict]:
+    db = await get_db()
+    cur = await db.execute(
+        "SELECT user_id, rarity, background_id FROM plants WHERE status = 'ready'"
+    )
+    rows = await cur.fetchall()
+    values: dict[int, int] = {}
+    counts: dict[int, int] = {}
+    for row in rows:
+        uid = int(row["user_id"])
+        price = plant_market_price(row.get("rarity"), row.get("background_id"))
+        values[uid] = values.get(uid, 0) + price
+        counts[uid] = counts.get(uid, 0) + 1
+
+    ranked = sorted(values.items(), key=lambda x: x[1], reverse=True)[:10]
+    entries: list[dict] = []
+    for rank, (uid, garden_value) in enumerate(ranked, start=1):
+        user = await get_user_by_id(uid)
+        if not user:
+            continue
+        entries.append(
+            {
+                "rank": rank,
+                "display_name": user.get("display_name") or "Садовник",
+                "username": user.get("username"),
+                "garden_value": garden_value,
+                "plant_count": counts.get(uid, 0),
+            }
+        )
+    return entries
+
+
+async def get_leaderboard(now_ts: int | None = None) -> dict:
+    now_ts = now_ts or NOW()
+    hour_start = now_ts - (now_ts % 3600)
+    next_update = hour_start + 3600
+
+    cached_hour = await get_app_setting(LEADERBOARD_HOUR_KEY)
+    if cached_hour == str(hour_start):
+        raw = await get_app_setting(LEADERBOARD_JSON_KEY)
+        if raw:
+            return {
+                "updated_at": hour_start,
+                "next_update_at": next_update,
+                "entries": json.loads(raw),
+            }
+
+    entries = await _compute_leaderboard_top10()
+    await _upsert_setting(LEADERBOARD_HOUR_KEY, str(hour_start))
+    await _upsert_setting(LEADERBOARD_JSON_KEY, json.dumps(entries, ensure_ascii=False))
+    return {
+        "updated_at": hour_start,
+        "next_update_at": next_update,
+        "entries": entries,
     }

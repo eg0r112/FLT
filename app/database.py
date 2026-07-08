@@ -120,6 +120,50 @@ _MIGRATIONS = (
     "ALTER TABLE plants ADD COLUMN plot_slot INTEGER NOT NULL DEFAULT 1",
 )
 
+_EXTRA_TABLES = """
+CREATE TABLE IF NOT EXISTS ad_conversations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL UNIQUE REFERENCES users(id),
+    blocked INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    admin_last_read_at INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_ad_conv_user ON ad_conversations(user_id);
+CREATE INDEX IF NOT EXISTS idx_ad_conv_updated ON ad_conversations(updated_at);
+
+CREATE TABLE IF NOT EXISTS ad_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id INTEGER NOT NULL REFERENCES ad_conversations(id),
+    from_user_id INTEGER NOT NULL REFERENCES users(id),
+    body TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ad_msg_conv ON ad_messages(conversation_id, created_at);
+"""
+
+_EXTRA_TABLES_PG = """
+CREATE TABLE IF NOT EXISTS ad_conversations (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL UNIQUE REFERENCES users(id),
+    blocked INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    admin_last_read_at INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_ad_conv_user ON ad_conversations(user_id);
+CREATE INDEX IF NOT EXISTS idx_ad_conv_updated ON ad_conversations(updated_at);
+
+CREATE TABLE IF NOT EXISTS ad_messages (
+    id SERIAL PRIMARY KEY,
+    conversation_id INTEGER NOT NULL REFERENCES ad_conversations(id),
+    from_user_id INTEGER NOT NULL REFERENCES users(id),
+    body TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ad_msg_conv ON ad_messages(conversation_id, created_at);
+"""
+
 
 class CursorResult:
     def __init__(self, rows: list[Any], lastrowid: int | None = None):
@@ -210,6 +254,11 @@ def _normalize_url(url: str) -> str:
     return url
 
 
+async def _run_extra_tables(db: Any) -> None:
+    sql = _EXTRA_TABLES_PG if _backend == "postgres" else _EXTRA_TABLES
+    await db.executescript(sql)
+
+
 async def _run_sqlite_migrations(db: SqliteDatabase) -> None:
     for sql in _MIGRATIONS:
         try:
@@ -237,12 +286,20 @@ async def _ensure_app_settings(db: Any) -> None:
 
 
 async def reset_all_data(db: Any) -> None:
-    tables = ("self_waterings", "waterings", "plants", "users", "app_settings")
+    tables = (
+        "ad_messages",
+        "ad_conversations",
+        "self_waterings",
+        "waterings",
+        "plants",
+        "users",
+        "app_settings",
+    )
     if _backend == "postgres":
         async with db._pool.acquire() as conn:
             await conn.execute(
-                "TRUNCATE self_waterings, waterings, plants, users, app_settings "
-                "RESTART IDENTITY CASCADE"
+                "TRUNCATE ad_messages, ad_conversations, self_waterings, waterings, "
+                "plants, users, app_settings RESTART IDENTITY CASCADE"
             )
     else:
         for table in tables:
@@ -310,6 +367,7 @@ async def get_db() -> Any:
             )
         except Exception:
             pass
+        await _run_extra_tables(_db)
     else:
         _backend = "sqlite"
         Path(settings.db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -318,6 +376,7 @@ async def get_db() -> Any:
         _db = SqliteDatabase(conn)
         await _db.executescript(SQLITE_SCHEMA)
         await _run_sqlite_migrations(_db)
+        await _run_extra_tables(_db)
 
     await _maybe_migrate_schema(_db)
     return _db

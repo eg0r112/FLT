@@ -15,6 +15,15 @@ from app.config import get_settings
 from app.database import close_db, get_db
 from app.bot_setup import create_bot, create_dispatcher
 from app.ref_code import encode_ref, make_ref_param, resolve_ref
+from app.ads import (
+    count_admin_unread,
+    get_messages,
+    get_user_inbox,
+    is_admin,
+    list_admin_inbox,
+    send_message,
+    set_blocked,
+)
 from app.services import (
     build_display_name,
     build_shop_state,
@@ -23,6 +32,7 @@ from app.services import (
     finalize_ready_plants,
     get_friend_growing_plant,
     get_global_growth_window,
+    get_leaderboard,
     get_growing_plant,
     get_growing_plants,
     get_or_create_user,
@@ -35,6 +45,18 @@ from app.services import (
     water_own_plant,
     water_plant,
 )
+
+from pydantic import BaseModel
+
+
+class AdMessageIn(BaseModel):
+    text: str
+    conversation_id: int | None = None
+
+
+class AdBlockIn(BaseModel):
+    conversation_id: int
+
 
 logger = logging.getLogger(__name__)
 STATIC = Path(__file__).resolve().parent.parent / "static"
@@ -210,6 +232,9 @@ async def api_me(
     upgrades = build_upgrades_info(db_user, settings)
     shop = build_shop_state(db_user)
 
+    admin = is_admin(telegram_id, settings)
+    ads_unread = await count_admin_unread() if admin else 0
+
     return {
         "user": {
             "telegram_id": db_user["telegram_id"],
@@ -218,6 +243,7 @@ async def api_me(
             "ref_code": ref_code,
             "coins": db_user["coins"],
             "is_new": is_new,
+            "is_admin": admin,
         },
         "growing": growing,
         "growing_plants": growing_plants,
@@ -238,6 +264,7 @@ async def api_me(
         },
         "referral_link": _referral_link(telegram_id, settings),
         "bot_username": _bot_username(settings),
+        "ads_unread": ads_unread,
     }
 
 
@@ -285,6 +312,80 @@ async def api_friend(
 @app.get("/api/global-stats")
 async def api_global_stats():
     return await get_global_growth_window()
+
+
+@app.get("/api/leaderboard")
+async def api_leaderboard():
+    return await get_leaderboard()
+
+
+@app.get("/api/ads/inbox")
+async def api_ads_inbox(tg_user: dict = Depends(get_tg_user)):
+    user = await get_user_by_telegram(tg_user["id"])
+    if not user:
+        raise HTTPException(404, "User not found")
+    settings = get_settings()
+    if is_admin(tg_user["id"], settings):
+        return {
+            "is_admin": True,
+            "conversations": await list_admin_inbox(),
+        }
+    data = await get_user_inbox(user["id"])
+    return {"is_admin": False, **data}
+
+
+@app.get("/api/ads/messages/{conversation_id}")
+async def api_ads_messages(
+    conversation_id: int,
+    tg_user: dict = Depends(get_tg_user),
+):
+    user = await get_user_by_telegram(tg_user["id"])
+    if not user:
+        raise HTTPException(404, "User not found")
+    settings = get_settings()
+    admin = is_admin(tg_user["id"], settings)
+    if not admin:
+        raise HTTPException(403, "Forbidden")
+    messages = await get_messages(conversation_id, user["id"], admin=True)
+    return {"messages": messages}
+
+
+@app.post("/api/ads/messages")
+async def api_ads_send(body: AdMessageIn, tg_user: dict = Depends(get_tg_user)):
+    user = await get_user_by_telegram(tg_user["id"])
+    if not user:
+        raise HTTPException(404, "User not found")
+    settings = get_settings()
+    admin = is_admin(tg_user["id"], settings)
+    result = await send_message(
+        user["id"],
+        body.text,
+        is_admin_user=admin,
+        conversation_id=body.conversation_id,
+    )
+    if not result["ok"]:
+        raise HTTPException(400, detail=result)
+    return result
+
+
+@app.post("/api/ads/block")
+async def api_ads_block(body: AdBlockIn, tg_user: dict = Depends(get_tg_user)):
+    if not is_admin(tg_user["id"]):
+        raise HTTPException(403, "Forbidden")
+    result = await set_blocked(body.conversation_id, True)
+    if not result["ok"]:
+        raise HTTPException(400, detail=result)
+    return result
+
+
+@app.post("/api/ads/unblock")
+async def api_ads_unblock(body: AdBlockIn, tg_user: dict = Depends(get_tg_user)):
+    if not is_admin(tg_user["id"]):
+        raise HTTPException(403, "Forbidden")
+    result = await set_blocked(body.conversation_id, False)
+    if not result["ok"]:
+        raise HTTPException(400, detail=result)
+    return result
 
 
 @app.post("/api/water/{plant_id}")

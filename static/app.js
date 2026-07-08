@@ -18,6 +18,12 @@
   let harvestModalOpen = false;
   let harvestQueue = [];
   let refreshing = false;
+  let adsOpen = false;
+  let adsView = "list";
+  let adsConversationId = null;
+  let adsInbox = null;
+  let adsMessages = [];
+  let adsBlocked = false;
 
   const TABS = ["garden", "plot", "friends", "shop", "profile"];
 
@@ -89,6 +95,311 @@
   };
 
   const GLOBAL_STATS_CACHE_KEY = "garden_global_stats_v1";
+  const LEADERBOARD_CACHE_KEY = "garden_leaderboard_v1";
+
+  function formatLeaderboardTime(ts) {
+    const d = new Date(ts * 1000);
+    const h = String(d.getHours()).padStart(2, "0");
+    const m = String(d.getMinutes()).padStart(2, "0");
+    return `${h}:${m}`;
+  }
+
+  function readLeaderboardCache() {
+    try {
+      const raw = localStorage.getItem(LEADERBOARD_CACHE_KEY);
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      const now = Math.floor(Date.now() / 1000);
+      if (!data?.next_update_at || data.next_update_at <= now) return null;
+      return data;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function renderLeaderboardHtml(lb) {
+    if (!lb?.entries?.length) {
+      return `
+        <div class="leaderboard">
+          <div class="section-title">🏆 Топ садов</div>
+          <p class="leaderboard__empty">Пока никого в рейтинге — вырасти коллекцию!</p>
+        </div>`;
+    }
+    const rows = lb.entries
+      .map((e) => {
+        const handle = e.username ? `@${e.username}` : "";
+        return `
+        <div class="leaderboard__row">
+          <div class="leaderboard__rank">${e.rank}</div>
+          <div class="leaderboard__info">
+            <div class="leaderboard__name">${e.display_name}</div>
+            ${handle ? `<div class="leaderboard__handle">${handle}</div>` : ""}
+          </div>
+          <div class="leaderboard__value">${formatNum(e.garden_value)}</div>
+        </div>`;
+      })
+      .join("");
+    const updated = formatLeaderboardTime(lb.updated_at);
+    const next = formatLeaderboardTime(lb.next_update_at);
+    return `
+      <div class="leaderboard" id="leaderboard-section">
+        <div class="section-title">🏆 Топ садов</div>
+        <div class="leaderboard__meta">Обновлено в ${updated} · след. в ${next}</div>
+        <div class="leaderboard__list">${rows}</div>
+      </div>`;
+  }
+
+  async function ensureLeaderboard() {
+    const now = Math.floor(Date.now() / 1000);
+    if (state.leaderboard?.next_update_at > now) return;
+    const cached = readLeaderboardCache();
+    if (cached) {
+      state.leaderboard = cached;
+      return;
+    }
+    try {
+      const data = await api("GET", "/api/leaderboard");
+      state.leaderboard = data;
+      try {
+        localStorage.setItem(LEADERBOARD_CACHE_KEY, JSON.stringify(data));
+      } catch (_) {}
+    } catch (_) {}
+  }
+
+  function updateLeaderboardSection() {
+    const sec = document.getElementById("leaderboard-section");
+    if (!sec || !state.leaderboard) return;
+    const wrap = document.createElement("div");
+    wrap.innerHTML = renderLeaderboardHtml(state.leaderboard);
+    sec.replaceWith(wrap.firstElementChild);
+  }
+
+  function adsUnreadBadge() {
+    const n = state.user?.is_admin ? state.ads_unread || 0 : 0;
+    return n > 0 ? `<span class="ads-btn__badge">${n > 99 ? "99+" : n}</span>` : "";
+  }
+
+  function formatAdsTime(ts) {
+    const d = new Date(ts * 1000);
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function renderAdsMessages() {
+    if (!adsMessages.length) {
+      return `<div class="ads-chat__empty">Напишите о рекламе — администратор увидит сообщение здесь.</div>`;
+    }
+    return adsMessages
+      .map((m) => {
+        const cls = m.is_mine ? "ads-chat__msg ads-chat__msg--mine" : "ads-chat__msg";
+        const who = m.is_admin ? "Админ" : m.display_name || "Вы";
+        return `
+        <div class="${cls}">
+          <div class="ads-chat__who">${who}</div>
+          <div class="ads-chat__body">${escapeHtml(m.body)}</div>
+          <div class="ads-chat__time">${formatAdsTime(m.created_at)}</div>
+        </div>`;
+      })
+      .join("");
+  }
+
+  function renderAdsInboxList() {
+    const convs = adsInbox?.conversations || [];
+    if (!convs.length) {
+      return `<div class="ads-chat__empty">Пока нет чатов с рекламодателями.</div>`;
+    }
+    return convs
+      .map((c) => {
+        const name = c.display_name || c.username || "Рекламодатель";
+        const preview = c.last_body ? escapeHtml(c.last_body).slice(0, 80) : "Нет сообщений";
+        const badge = c.unread > 0 ? `<span class="ads-inbox__badge">${c.unread}</span>` : "";
+        const blocked = c.blocked ? `<span class="ads-inbox__blocked">заблок.</span>` : "";
+        return `
+        <button type="button" class="ads-inbox__item" data-conv="${c.id}" data-blocked="${c.blocked ? 1 : 0}">
+          <div class="ads-inbox__top">
+            <span class="ads-inbox__name">${escapeHtml(name)} ${blocked}</span>
+            ${badge}
+          </div>
+          <div class="ads-inbox__preview">${preview}</div>
+        </button>`;
+      })
+      .join("");
+  }
+
+  function bindAdsEvents() {
+    document.getElementById("ads-close")?.addEventListener("click", closeAdsPanel);
+    document.getElementById("ads-back")?.addEventListener("click", async () => {
+      adsView = "list";
+      adsConversationId = null;
+      await openAdsPanel();
+    });
+    document.querySelectorAll(".ads-inbox__item").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        adsConversationId = parseInt(btn.dataset.conv, 10);
+        adsView = "chat";
+        adsBlocked = btn.dataset.blocked === "1";
+        const res = await api("GET", `/api/ads/messages/${adsConversationId}`);
+        adsMessages = res.messages || [];
+        renderAdsPanel();
+      });
+    });
+    document.getElementById("ads-block")?.addEventListener("click", async () => {
+      if (!adsConversationId) return;
+      await api("POST", "/api/ads/block", { conversation_id: adsConversationId });
+      adsBlocked = true;
+      toast("Чат заблокирован");
+      renderAdsPanel();
+    });
+    document.getElementById("ads-unblock")?.addEventListener("click", async () => {
+      if (!adsConversationId) return;
+      await api("POST", "/api/ads/unblock", { conversation_id: adsConversationId });
+      adsBlocked = false;
+      toast("Чат разблокирован");
+      renderAdsPanel();
+    });
+    document.getElementById("ads-form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const input = document.getElementById("ads-input");
+      const text = (input?.value || "").trim();
+      if (!text) return;
+      try {
+        const payload = { text };
+        if (state.user?.is_admin && adsConversationId) {
+          payload.conversation_id = adsConversationId;
+        }
+        const res = await api("POST", "/api/ads/messages", payload);
+        adsMessages.push(res.message);
+        input.value = "";
+        renderAdsPanel();
+      } catch (err) {
+        if (err?.detail?.error === "blocked") toast("Чат заблокирован");
+        else toast("Не удалось отправить");
+      }
+    });
+  }
+
+  function renderAdsPanel() {
+    let panel = document.getElementById("ads-panel");
+    if (!panel) {
+      panel = document.createElement("div");
+      panel.id = "ads-panel";
+      panel.className = "ads-panel";
+      document.body.appendChild(panel);
+    }
+
+    const isAdmin = state.user?.is_admin;
+    let headerTitle = "Реклама";
+    let backBtn = "";
+    let blockBtn = "";
+
+    if (isAdmin && adsView === "chat" && adsConversationId) {
+      headerTitle = "Чат";
+      backBtn = `<button type="button" class="ads-panel__back" id="ads-back">←</button>`;
+      blockBtn = adsBlocked
+        ? `<button type="button" class="ads-panel__block ads-panel__block--on" id="ads-unblock">Разблок.</button>`
+        : `<button type="button" class="ads-panel__block" id="ads-block">Блок</button>`;
+    } else if (isAdmin) {
+      headerTitle = "Реклама — чаты";
+    }
+
+    let body = "";
+    if (isAdmin && adsView === "list") {
+      body = `<div class="ads-inbox">${renderAdsInboxList()}</div>`;
+    } else {
+      body = `<div class="ads-chat__messages" id="ads-messages">${renderAdsMessages()}</div>`;
+    }
+
+    const blockedNote =
+      !isAdmin && adsBlocked
+        ? `<div class="ads-chat__blocked-note">Чат заблокирован администратором.</div>`
+        : "";
+
+    panel.innerHTML = `
+      <div class="ads-panel__sheet">
+        <div class="ads-panel__head">
+          ${backBtn}
+          <h3>${headerTitle}</h3>
+          ${blockBtn}
+          <button type="button" class="ads-panel__close" id="ads-close">✕</button>
+        </div>
+        ${blockedNote}
+        <div class="ads-panel__body">${body}</div>
+        ${
+          isAdmin && adsView === "list"
+            ? ""
+            : `<form class="ads-panel__form" id="ads-form">
+          <input type="text" id="ads-input" maxlength="2000" placeholder="Сообщение…" ${!isAdmin && adsBlocked ? "disabled" : ""} autocomplete="off" />
+          <button type="submit" class="ads-panel__send" ${!isAdmin && adsBlocked ? "disabled" : ""}>➤</button>
+        </form>`
+        }
+      </div>`;
+
+    panel.hidden = false;
+    bindAdsEvents();
+    const msgBox = document.getElementById("ads-messages");
+    if (msgBox) msgBox.scrollTop = msgBox.scrollHeight;
+  }
+
+  async function openAdsPanel() {
+    adsOpen = true;
+    try {
+      const data = await api("GET", "/api/ads/inbox");
+      adsInbox = data;
+      if (data.is_admin) {
+        adsView = adsConversationId ? "chat" : "list";
+        if (adsConversationId) {
+          const res = await api("GET", `/api/ads/messages/${adsConversationId}`);
+          adsMessages = res.messages || [];
+          const conv = (data.conversations || []).find((c) => c.id === adsConversationId);
+          adsBlocked = Boolean(conv?.blocked);
+          state.ads_unread = 0;
+        }
+      } else {
+        adsView = "chat";
+        adsConversationId = data.conversation?.id || null;
+        adsMessages = data.messages || [];
+        adsBlocked = Boolean(data.conversation?.blocked);
+      }
+      renderAdsPanel();
+      updateAdsButtonBadge();
+    } catch (_) {
+      toast("Не удалось открыть чат");
+      adsOpen = false;
+    }
+  }
+
+  function closeAdsPanel() {
+    adsOpen = false;
+    const panel = document.getElementById("ads-panel");
+    if (panel) panel.hidden = true;
+    if (state.user?.is_admin) {
+      adsView = "list";
+      adsConversationId = null;
+    }
+  }
+
+  function updateAdsButtonBadge() {
+    const btn = document.getElementById("ads-btn");
+    if (!btn) return;
+    const badge = btn.querySelector(".ads-btn__badge");
+    const n = state.user?.is_admin ? state.ads_unread || 0 : 0;
+    if (n > 0) {
+      if (badge) badge.textContent = n > 99 ? "99+" : String(n);
+      else {
+        const span = document.createElement("span");
+        span.className = "ads-btn__badge";
+        span.textContent = n > 99 ? "99+" : String(n);
+        btn.appendChild(span);
+      }
+    } else if (badge) badge.remove();
+  }
 
   function coinHtml(sm) {
     return `<span class="coin${sm ? " coin--sm" : ""}" aria-hidden="true"></span>`;
@@ -497,6 +808,13 @@
       </div>`;
     html += renderStatusCard();
     html += renderStats();
+    html += state.leaderboard
+      ? renderLeaderboardHtml(state.leaderboard)
+      : `
+      <div class="leaderboard" id="leaderboard-section">
+        <div class="section-title">🏆 Топ садов</div>
+        <p class="leaderboard__empty">Загрузка рейтинга…</p>
+      </div>`;
     html += `<div class="section-title">🏆 Коллекция</div>`;
     html += renderReady(state.ready_plants);
     return html;
@@ -585,7 +903,10 @@
       <div class="page-card" style="margin-top:12px">
         <h3>Твоя ссылка</h3>
         <p style="word-break:break-all;font-size:0.78rem;margin-top:6px">${link}</p>
-      </div>`;
+      </div>
+      <button type="button" class="btn btn-ads" id="ads-btn" style="width:100%;margin-top:14px">
+        <span>📢 Реклама</span>${adsUnreadBadge()}
+      </button>`;
   }
 
   function renderShopTab() {
@@ -659,6 +980,9 @@
     main.innerHTML = html;
     bindEvents();
     ensureTickLoop();
+    if (currentTab === "garden") {
+      ensureLeaderboard().then(() => updateLeaderboardSection());
+    }
   }
 
   async function loadFriend(refCode) {
@@ -693,6 +1017,7 @@
       btn.addEventListener("click", () => buyUpgrade(btn.dataset.upgrade, btn));
     });
     $("#copy-ref")?.addEventListener("click", copyRef);
+    $("#ads-btn")?.addEventListener("click", openAdsPanel);
     $("#go-plot")?.addEventListener("click", () => setTab("plot"));
 
     const friendRef = parseRef();
@@ -969,6 +1294,7 @@
       if (ref && ref !== state.user.ref_code) setTab("plot");
       else render();
       ensureTickLoop();
+      startAdPlane();
     } catch (e) {
       const tg = getTg();
       loader.querySelector("p").textContent = tg?.initData
@@ -1019,13 +1345,8 @@
       setTimeout(fly, wait);
     }
 
-    setTimeout(fly, 45000 + Math.random() * 45000);
+    setTimeout(fly, 5000 + Math.random() * 5000);
   }
 
   init();
-  if (window.requestIdleCallback) {
-    requestIdleCallback(() => startAdPlane(), { timeout: 5000 });
-  } else {
-    setTimeout(startAdPlane, 3000);
-  }
 })();
