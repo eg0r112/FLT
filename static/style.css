@@ -171,6 +171,73 @@ body {
   pointer-events: none;
 }
 
+.meadow-egg--edit {
+  cursor: grab;
+  touch-action: none;
+  outline: 2px dashed rgba(255, 212, 59, 0.9);
+  outline-offset: 3px;
+  z-index: 2;
+}
+
+.meadow-egg--edit:active {
+  cursor: grabbing;
+}
+
+.egg-edit-panel {
+  position: fixed;
+  left: 50%;
+  bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  width: min(400px, calc(100vw - 24px));
+  z-index: 200;
+  background: rgba(255, 255, 255, 0.96);
+  border: 2px solid var(--yellow);
+  border-radius: 16px;
+  padding: 12px 14px;
+  box-shadow: var(--shadow-lg);
+  pointer-events: auto;
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.egg-edit-panel__title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.egg-edit-panel__coords {
+  margin-bottom: 6px;
+  color: var(--text-light);
+}
+
+.egg-edit-panel__hint {
+  margin-bottom: 10px;
+  line-height: 1.35;
+  color: var(--text-light);
+  font-size: 0.75rem;
+}
+
+.egg-edit-panel__hint code {
+  font-size: 0.72rem;
+}
+
+.egg-edit-panel__copy {
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  padding: 10px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  background: linear-gradient(180deg, #ffe066, var(--yellow));
+  color: var(--text);
+  cursor: pointer;
+}
+
+.egg-edit-panel__copy:active {
+  transform: scale(0.98);
+}
+
 .meadow-egg:active {
   transform: translate(-50%, -50%) scale(0.92);
 }

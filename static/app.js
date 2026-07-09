@@ -542,14 +542,38 @@
     else showHarvestModal(plant);
   }
 
-  function renderEasterEgg(egg) {
+  function getEggQueryId() {
+    const p = new URLSearchParams(location.search);
+    const raw = p.get("egg") || p.get("egg_edit");
+    if (!raw) return null;
+    const id = parseInt(raw, 10);
+    return id >= 1 && id <= 37 ? id : null;
+  }
+
+  function isEggEditMode() {
+    const p = new URLSearchParams(location.search);
+    if (p.get("edit") !== "1") return false;
+    return Boolean(state?.config?.dev_mode) || !hasTgAuth();
+  }
+
+  async function fetchEggFromCatalog(id) {
+    const res = await fetch("/static/images/easter/catalog.json");
+    if (!res.ok) return null;
+    const catalog = await res.json();
+    return catalog.find((e) => e.id === id) || null;
+  }
+
+  function renderEasterEgg(egg, options = {}) {
+    const { editable = false } = options;
     const host = document.getElementById("meadow-eggs");
-    if (!host) return;
+    if (!host) return null;
     host.innerHTML = "";
-    if (!egg) return;
+    document.getElementById("egg-edit-panel")?.remove();
+    if (!egg) return null;
+
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "meadow-egg";
+    btn.className = "meadow-egg" + (editable ? " meadow-egg--edit" : "");
     btn.title = egg.name || "";
     btn.style.left = `${egg.left}%`;
     btn.style.top = `${egg.top}%`;
@@ -557,8 +581,99 @@
     btn.style.width = `${size}px`;
     btn.style.height = `${size}px`;
     btn.innerHTML = `<img src="${egg.image}" alt="">`;
-    btn.addEventListener("click", () => claimEasterEgg(egg));
+
+    if (editable) {
+      setupEggEditor(btn, egg);
+    } else {
+      btn.addEventListener("click", () => claimEasterEgg(egg));
+    }
+
     host.appendChild(btn);
+    return btn;
+  }
+
+  function setupEggEditor(btn, egg) {
+    const panel = document.createElement("div");
+    panel.id = "egg-edit-panel";
+    panel.className = "egg-edit-panel";
+    document.body.appendChild(panel);
+
+    const readPos = () => ({
+      left: Math.round(parseFloat(btn.style.left) * 10) / 10,
+      top: Math.round(parseFloat(btn.style.top) * 10) / 10,
+      size: parseInt(btn.style.width, 10) || 48,
+    });
+
+    const snippet = () => {
+      const p = readPos();
+      return JSON.stringify(
+        {
+          id: egg.id,
+          name: egg.name,
+          image: egg.image,
+          left: p.left,
+          top: p.top,
+          size: p.size,
+        },
+        null,
+        2,
+      );
+    };
+
+    const refreshPanel = () => {
+      const p = readPos();
+      panel.innerHTML = `
+        <div class="egg-edit-panel__title">Редактор пасхалки #${egg.id} — ${egg.name}</div>
+        <div class="egg-edit-panel__coords">left: <b>${p.left}</b>% · top: <b>${p.top}</b>% · size: <b>${p.size}</b>px</div>
+        <div class="egg-edit-panel__hint">Тяни иконку пальцем/мышью. Вставь блок в <code>static/images/easter/catalog.json</code></div>
+        <button type="button" class="egg-edit-panel__copy">Скопировать JSON</button>`;
+      panel.querySelector(".egg-edit-panel__copy").addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(snippet());
+          toast("JSON скопирован");
+        } catch (_) {
+          toast(snippet());
+        }
+      });
+    };
+
+    refreshPanel();
+
+    let dragging = false;
+    btn.addEventListener("pointerdown", (e) => {
+      dragging = true;
+      btn.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+    btn.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      const left = Math.min(98, Math.max(2, (e.clientX / window.innerWidth) * 100));
+      const top = Math.min(98, Math.max(2, (e.clientY / window.innerHeight) * 100));
+      btn.style.left = `${left}%`;
+      btn.style.top = `${top}%`;
+      refreshPanel();
+    });
+    const stopDrag = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      try {
+        btn.releasePointerCapture(e.pointerId);
+      } catch (_) {}
+    };
+    btn.addEventListener("pointerup", stopDrag);
+    btn.addEventListener("pointercancel", stopDrag);
+  }
+
+  async function resolveEasterEggDisplay() {
+    const previewId = getEggQueryId();
+    if (previewId) {
+      const fromCatalog = await fetchEggFromCatalog(previewId);
+      if (fromCatalog) {
+        renderEasterEgg(fromCatalog, { editable: isEggEditMode() });
+        return;
+      }
+    }
+    renderEasterEgg(state?.easter_egg);
   }
 
   async function claimEasterEgg(egg) {
@@ -655,7 +770,13 @@
     const res = await fetch(apiBase + path, opts);
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw err;
+      const msg =
+        typeof err.detail === "string"
+          ? err.detail
+          : err.detail
+            ? JSON.stringify(err.detail)
+            : `HTTP ${res.status}`;
+      throw new Error(msg);
     }
     return res.json();
   }
@@ -1354,7 +1475,7 @@
 
       if (ref && ref !== state.user.ref_code) setTab("plot");
       else render();
-      renderEasterEgg(state.easter_egg);
+      await resolveEasterEggDisplay();
       ensureTickLoop();
       startAdPlane();
     } catch (e) {
