@@ -242,7 +242,12 @@ class PostgresDatabase:
         pg_sql = _to_pg_sql(sql)
         upper = pg_sql.strip().upper()
         is_insert = upper.startswith("INSERT") and "RETURNING" not in upper
-        wants_lastrowid = is_insert and "APP_SETTINGS" not in upper
+        wants_lastrowid = (
+            is_insert
+            and "ON CONFLICT" not in upper
+            and "EASTER_EGG" not in upper
+            and "APP_SETTINGS" not in upper
+        )
         if wants_lastrowid:
             pg_sql = pg_sql.rstrip().rstrip(";") + " RETURNING id"
 

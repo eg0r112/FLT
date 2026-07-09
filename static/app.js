@@ -1359,8 +1359,9 @@
       startAdPlane();
     } catch (e) {
       const tg = getTg();
+      const detail = e?.message && e.message !== "HTTP error" ? ` (${e.message})` : "";
       loader.querySelector("p").textContent = tg?.initData
-        ? "Ошибка загрузки. Проверь BOT_TOKEN на Amvera."
+        ? `Ошибка загрузки${detail}. Если не помогло — проверь BOT_TOKEN на Amvera.`
         : "Открой через бота @flt_garden_bot → «Открыть сад»";
     }
   }
