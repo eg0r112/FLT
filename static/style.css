@@ -1,4 +1,7 @@
 :root {
+  --horizon-y: 38%;
+  --meadow-far: #c5e8b8;
+  --meadow-near: #a8db9a;
   --sky-top: #87ceeb;
   --sky-bot: #b8e4f9;
   --grass: #6bcB77;
@@ -43,7 +46,13 @@ body {
   position: fixed;
   inset: 0;
   z-index: 0;
-  background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bot) 55%, #d4f1d4 100%);
+  background: linear-gradient(
+    180deg,
+    var(--sky-top) 0%,
+    var(--sky-bot) calc(var(--horizon-y) - 10%),
+    #d0f0d4 calc(var(--horizon-y) - 3%),
+    var(--meadow-far) var(--horizon-y)
+  );
   pointer-events: none;
 }
 
@@ -91,16 +100,82 @@ body {
   to { transform: translateX(calc(100vw + 200px)); }
 }
 
+/* ── Distant meadow (easter-egg layer behind UI) ── */
+.meadow {
+  position: absolute;
+  top: var(--horizon-y);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 0;
+}
+
+.meadow__horizon {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(58, 120, 68, 0.45) 18%,
+    rgba(42, 98, 52, 0.65) 50%,
+    rgba(58, 120, 68, 0.45) 82%,
+    transparent 100%
+  );
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.meadow__field {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, var(--meadow-far) 0%, var(--meadow-near) 55%, #95cf88 100%),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent 47px,
+      rgba(255, 255, 255, 0.04) 47px,
+      rgba(255, 255, 255, 0.04) 48px
+    );
+}
+
+.meadow-eggs {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: auto;
+}
+
+.meadow-egg {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.12));
+  transition: transform 0.15s ease;
+}
+
+.meadow-egg:active {
+  transform: translate(-50%, -50%) scale(0.92);
+}
+
 .hills {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
-  height: 35%;
+  height: 22%;
+  z-index: 0;
   background:
-    radial-gradient(ellipse 80% 100% at 20% 100%, var(--grass) 0%, transparent 70%),
-    radial-gradient(ellipse 70% 90% at 80% 100%, var(--grass-dark) 0%, transparent 65%),
-    linear-gradient(180deg, transparent 0%, #8ed996 100%);
+    radial-gradient(ellipse 70% 100% at 18% 100%, var(--grass) 0%, transparent 68%),
+    radial-gradient(ellipse 65% 95% at 82% 100%, var(--grass-dark) 0%, transparent 62%);
+  opacity: 0.9;
 }
 
 /* ── Ad plane ── */
