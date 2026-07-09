@@ -67,232 +67,286 @@
     "id": 9,
     "name": "Дверь",
     "image": "/static/images/easter/9.png",
-    "left": 88,
-    "top": 72,
-    "size": 48
+    "left": 56.6,
+    "top": 61.1,
+    "size": 112
   },
   {
     "id": 10,
     "name": "Делореан",
     "image": "/static/images/easter/10.png",
-    "left": 88,
-    "top": 72,
-    "size": 48
+    "left": 57.3,
+    "top": 60,
+    "size": 128
   },
   {
     "id": 11,
     "name": "Дом",
     "image": "/static/images/easter/11.png",
-    "left": 88,
-    "top": 72,
-    "size": 48
+    "left": 31.6,
+    "top": 20.8,
+    "size": 52,
+    "animation": {
+      "type": "path",
+      "loop": true,
+      "segments": [
+        {
+          "durationMin": 30,
+          "durationMax": 40,
+          "to": {
+            "left": 70.6,
+            "top": 3.7
+          }
+        },
+        {
+          "durationMin": 30,
+          "durationMax": 40,
+          "to": {
+            "left": 31.6,
+            "top": 20.8
+          }
+        }
+      ]
+    }
   },
   {
     "id": 12,
     "name": "куб",
     "image": "/static/images/easter/12.png",
-    "left": 88,
-    "top": 72,
-    "size": 48
+    "left": 54.6,
+    "top": 58.4,
+    "size": 40
   },
   {
     "id": 13,
     "name": "кубок",
     "image": "/static/images/easter/13.png",
-    "left": 88,
-    "top": 72,
-    "size": 48
+    "left": 58.2,
+    "top": 60.1,
+    "size": 60
   },
   {
     "id": 14,
     "name": "лампа",
     "image": "/static/images/easter/14.png",
-    "left": 88,
-    "top": 72,
+    "left": 61.6,
+    "top": 58.1,
     "size": 48
   },
   {
     "id": 15,
     "name": "ловушка",
     "image": "/static/images/easter/15.png",
-    "left": 88,
-    "top": 72,
+    "left": 52.4,
+    "top": 54.9,
     "size": 48
   },
   {
     "id": 16,
     "name": "медальон",
     "image": "/static/images/easter/16.png",
-    "left": 88,
-    "top": 72,
+    "left": 62.9,
+    "top": 62.7,
     "size": 48
   },
   {
     "id": 17,
     "name": "меч",
     "image": "/static/images/easter/17.png",
-    "left": 88,
-    "top": 72,
-    "size": 48
+    "left": 55.6,
+    "top": 59.5,
+    "size": 64
   },
   {
     "id": 18,
     "name": "мыло",
     "image": "/static/images/easter/18.png",
-    "left": 88,
-    "top": 72,
+    "left": 53.2,
+    "top": 62.6,
     "size": 48
   },
   {
     "id": 19,
     "name": "мьёльнир",
     "image": "/static/images/easter/19.png",
-    "left": 88,
-    "top": 72,
-    "size": 48
+    "left": 58.6,
+    "top": 60.1,
+    "size": 60
   },
   {
     "id": 20,
     "name": "НЛО",
     "image": "/static/images/easter/20.png",
-    "left": 88,
-    "top": 72,
-    "size": 48
+    "left": 70.2,
+    "top": 2.1,
+    "size": 48,
+    "animation": {
+      "type": "path",
+      "loop": true,
+      "segments": [
+        {
+          "duration": 8,
+          "to": {
+            "left": 30.3,
+            "top": 13.7
+          }
+        },
+        {
+          "duration": 8,
+          "to": {
+            "left": 67.7,
+            "top": 11.6
+          }
+        },
+        {
+          "duration": 8,
+          "to": {
+            "left": 70.2,
+            "top": 2.1
+          }
+        }
+      ],
+      "clickEscape": {
+        "top": -14,
+        "duration": 2
+      }
+    }
   },
   {
     "id": 21,
     "name": "паучок",
     "image": "/static/images/easter/21.png",
-    "left": 88,
-    "top": 72,
-    "size": 48
+    "left": 57.3,
+    "top": 3.5,
+    "size": 80
   },
   {
     "id": 22,
     "name": "перри",
     "image": "/static/images/easter/22.png",
-    "left": 88,
-    "top": 72,
+    "left": 58.8,
+    "top": 60.1,
     "size": 48
   },
   {
     "id": 23,
     "name": "пистолеты",
     "image": "/static/images/easter/23.png",
-    "left": 88,
-    "top": 72,
-    "size": 48
+    "left": 58.8,
+    "top": 59.6,
+    "size": 60
   },
   {
     "id": 24,
     "name": "пицца",
     "image": "/static/images/easter/24.png",
-    "left": 88,
-    "top": 72,
-    "size": 48
+    "left": 60.5,
+    "top": 60.2,
+    "size": 64
   },
   {
     "id": 25,
     "name": "покебол",
     "image": "/static/images/easter/25.png",
-    "left": 88,
-    "top": 72,
-    "size": 48
+    "left": 55.5,
+    "top": 62.6,
+    "size": 24
   },
   {
     "id": 26,
     "name": "пончики",
     "image": "/static/images/easter/26.png",
-    "left": 88,
-    "top": 72,
+    "left": 55,
+    "top": 60.7,
     "size": 48
   },
   {
     "id": 27,
     "name": "портал",
     "image": "/static/images/easter/27.png",
-    "left": 88,
-    "top": 72,
-    "size": 48
+    "left": 53.9,
+    "top": 59.8,
+    "size": 64
   },
   {
     "id": 28,
     "name": "Сова",
     "image": "/static/images/easter/28.png",
-    "left": 88,
-    "top": 72,
-    "size": 48
+    "left": 61.4,
+    "top": 59.5,
+    "size": 80
   },
   {
     "id": 29,
     "name": "столб",
     "image": "/static/images/easter/29.png",
-    "left": 88,
-    "top": 72,
-    "size": 48
+    "left": 53.8,
+    "top": 58.9,
+    "size": 112
   },
   {
     "id": 30,
     "name": "такси",
     "image": "/static/images/easter/30.png",
-    "left": 88,
-    "top": 72,
-    "size": 48
+    "left": 58.4,
+    "top": 57.3,
+    "size": 128
   },
   {
     "id": 31,
     "name": "терминатор",
     "image": "/static/images/easter/31.png",
-    "left": 88,
-    "top": 72,
+    "left": 53.9,
+    "top": 58.5,
     "size": 48
   },
   {
     "id": 32,
     "name": "Туалет",
     "image": "/static/images/easter/32.png",
-    "left": 88,
-    "top": 72,
-    "size": 48
+    "left": 56.7,
+    "top": 59.8,
+    "size": 96
   },
   {
     "id": 33,
     "name": "УПМ",
     "image": "/static/images/easter/33.png",
-    "left": 88,
-    "top": 72,
-    "size": 48
+    "left": 54.5,
+    "top": 58.9,
+    "size": 56
   },
   {
     "id": 34,
     "name": "фургон",
     "image": "/static/images/easter/34.png",
-    "left": 88,
-    "top": 72,
-    "size": 48
+    "left": 55.8,
+    "top": 59.8,
+    "size": 88
   },
   {
     "id": 35,
     "name": "Фургончик",
     "image": "/static/images/easter/35.png",
-    "left": 88,
-    "top": 72,
-    "size": 48
+    "left": 58.8,
+    "top": 59.6,
+    "size": 112,
+    "effect": "smoke"
   },
   {
     "id": 36,
     "name": "херобрин",
     "image": "/static/images/easter/36.png",
-    "left": 88,
-    "top": 72,
-    "size": 48
+    "left": 62,
+    "top": 59.1,
+    "size": 64
   },
   {
     "id": 37,
     "name": "Шлем",
     "image": "/static/images/easter/37.png",
-    "left": 88,
-    "top": 72,
-    "size": 48
+    "left": 54,
+    "top": 57.6,
+    "size": 36
   }
 ]

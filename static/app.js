@@ -563,6 +563,83 @@
     return catalog.find((e) => e.id === id) || null;
   }
 
+  function setEggPosition(btn, left, top) {
+    btn.style.left = `${left}%`;
+    btn.style.top = `${top}%`;
+  }
+
+  function animateEggSegment(btn, from, to, durationMs, token) {
+    return new Promise((resolve) => {
+      const start = performance.now();
+      const step = (now) => {
+        if (token.cancelled) {
+          resolve(false);
+          return;
+        }
+        const t = Math.min(1, (now - start) / durationMs);
+        const left = from.left + (to.left - from.left) * t;
+        const top = from.top + (to.top - from.top) * t;
+        setEggPosition(btn, left, top);
+        if (t < 1) requestAnimationFrame(step);
+        else resolve(true);
+      };
+      requestAnimationFrame(step);
+    });
+  }
+
+  function startEggPathAnimation(btn, egg) {
+    const anim = egg.animation;
+    if (!anim || anim.type !== "path" || !anim.segments?.length) return null;
+
+    const token = { cancelled: false };
+    let escaping = false;
+
+    const getPos = () => ({
+      left: parseFloat(btn.style.left),
+      top: parseFloat(btn.style.top),
+    });
+
+    const runLoop = async () => {
+      setEggPosition(btn, egg.left, egg.top);
+      while (!token.cancelled) {
+        let from = { left: egg.left, top: egg.top };
+        for (const seg of anim.segments) {
+          if (token.cancelled) return;
+          let durationMs = (seg.duration || 0) * 1000;
+          if (seg.durationMin != null && seg.durationMax != null) {
+            const sec =
+              seg.durationMin + Math.random() * (seg.durationMax - seg.durationMin);
+            durationMs = sec * 1000;
+          }
+          const ok = await animateEggSegment(btn, from, seg.to, durationMs, token);
+          if (!ok) return;
+          from = seg.to;
+        }
+        if (!anim.loop) break;
+      }
+    };
+
+    runLoop();
+
+    const onClick = async () => {
+      if (escaping) return;
+      if (egg.id === 20 && anim.clickEscape) {
+        escaping = true;
+        token.cancelled = true;
+        const from = getPos();
+        const to = { left: from.left, top: anim.clickEscape.top };
+        await animateEggSegment(btn, from, to, anim.clickEscape.duration * 1000, {
+          cancelled: false,
+        });
+        await claimEasterEgg(egg);
+        return;
+      }
+      claimEasterEgg(egg);
+    };
+
+    return { token, onClick };
+  }
+
   function renderEasterEgg(egg, options = {}) {
     const { editable = false } = options;
     const host = document.getElementById("meadow-eggs");
@@ -573,19 +650,31 @@
 
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "meadow-egg" + (editable ? " meadow-egg--edit" : "");
+    let className = "meadow-egg";
+    if (editable) className += " meadow-egg--edit";
+    if (egg.effect === "smoke") className += " meadow-egg--smoke";
+    btn.className = className;
     btn.title = egg.name || "";
-    btn.style.left = `${egg.left}%`;
-    btn.style.top = `${egg.top}%`;
+    setEggPosition(btn, egg.left, egg.top);
     const size = egg.size || 48;
     btn.style.width = `${size}px`;
     btn.style.height = `${size}px`;
-    btn.innerHTML = `<img src="${egg.image}" alt="">`;
+
+    if (egg.effect === "smoke") {
+      btn.innerHTML = `<span class="meadow-egg__smoke" aria-hidden="true"></span><img src="${egg.image}" alt="">`;
+    } else {
+      btn.innerHTML = `<img src="${egg.image}" alt="">`;
+    }
 
     if (editable) {
       setupEggEditor(btn, egg);
     } else {
-      btn.addEventListener("click", () => claimEasterEgg(egg));
+      const motion = startEggPathAnimation(btn, egg);
+      if (motion) {
+        btn.addEventListener("click", motion.onClick);
+      } else {
+        btn.addEventListener("click", () => claimEasterEgg(egg));
+      }
     }
 
     host.appendChild(btn);
