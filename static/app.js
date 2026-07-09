@@ -596,13 +596,36 @@
     const panel = document.createElement("div");
     panel.id = "egg-edit-panel";
     panel.className = "egg-edit-panel";
+    panel.innerHTML = `
+      <div class="egg-edit-panel__title">Редактор пасхалки #${egg.id} — ${egg.name}</div>
+      <div class="egg-edit-panel__coords"></div>
+      <div class="egg-edit-panel__size">
+        <span class="egg-edit-panel__size-label">Размер</span>
+        <button type="button" class="egg-edit-panel__size-btn" data-size-delta="-8" aria-label="Меньше">−</button>
+        <button type="button" class="egg-edit-panel__size-btn" data-size-delta="-4" aria-label="Чуть меньше">−</button>
+        <span class="egg-edit-panel__size-val"></span>
+        <button type="button" class="egg-edit-panel__size-btn" data-size-delta="4" aria-label="Чуть больше">+</button>
+        <button type="button" class="egg-edit-panel__size-btn" data-size-delta="8" aria-label="Больше">+</button>
+      </div>
+      <div class="egg-edit-panel__hint">Тяни — двигать. Колёсико мыши на иконке — размер. Вставь JSON в <code>static/images/easter/catalog.json</code></div>
+      <button type="button" class="egg-edit-panel__copy">Скопировать JSON</button>`;
     document.body.appendChild(panel);
+
+    const coordsEl = panel.querySelector(".egg-edit-panel__coords");
+    const sizeValEl = panel.querySelector(".egg-edit-panel__size-val");
 
     const readPos = () => ({
       left: Math.round(parseFloat(btn.style.left) * 10) / 10,
       top: Math.round(parseFloat(btn.style.top) * 10) / 10,
       size: parseInt(btn.style.width, 10) || 48,
     });
+
+    const applySize = (next) => {
+      const size = Math.min(128, Math.max(20, Math.round(next)));
+      btn.style.width = `${size}px`;
+      btn.style.height = `${size}px`;
+      refreshPanel();
+    };
 
     const snippet = () => {
       const p = readPos();
@@ -622,25 +645,38 @@
 
     const refreshPanel = () => {
       const p = readPos();
-      panel.innerHTML = `
-        <div class="egg-edit-panel__title">Редактор пасхалки #${egg.id} — ${egg.name}</div>
-        <div class="egg-edit-panel__coords">left: <b>${p.left}</b>% · top: <b>${p.top}</b>% · size: <b>${p.size}</b>px</div>
-        <div class="egg-edit-panel__hint">Тяни иконку пальцем/мышью. Вставь блок в <code>static/images/easter/catalog.json</code></div>
-        <button type="button" class="egg-edit-panel__copy">Скопировать JSON</button>`;
-      panel.querySelector(".egg-edit-panel__copy").addEventListener("click", async () => {
-        try {
-          await navigator.clipboard.writeText(snippet());
-          toast("JSON скопирован");
-        } catch (_) {
-          toast(snippet());
-        }
-      });
+      coordsEl.innerHTML = `left: <b>${p.left}</b>% · top: <b>${p.top}</b>% · size: <b>${p.size}</b>px`;
+      sizeValEl.textContent = `${p.size}px`;
     };
+
+    panel.querySelectorAll("[data-size-delta]").forEach((b) => {
+      b.addEventListener("click", () => {
+        applySize(readPos().size + parseInt(b.dataset.sizeDelta, 10));
+      });
+    });
+
+    panel.querySelector(".egg-edit-panel__copy").addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(snippet());
+        toast("JSON скопирован");
+      } catch (_) {
+        toast(snippet());
+      }
+    });
 
     refreshPanel();
 
     let dragging = false;
+    btn.addEventListener(
+      "wheel",
+      (e) => {
+        e.preventDefault();
+        applySize(readPos().size + (e.deltaY < 0 ? 4 : -4));
+      },
+      { passive: false },
+    );
     btn.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) return;
       dragging = true;
       btn.setPointerCapture(e.pointerId);
       e.preventDefault();
@@ -1483,7 +1519,9 @@
       const detail = e?.message && e.message !== "HTTP error" ? ` (${e.message})` : "";
       loader.querySelector("p").textContent = tg?.initData
         ? `Ошибка загрузки${detail}. Если не помогло — проверь BOT_TOKEN на Amvera.`
-        : "Открой через бота @flt_garden_bot → «Открыть сад»";
+        : location.hostname === "localhost" || location.hostname === "127.0.0.1"
+          ? "Локально: в .env нужен DEV_MODE=true, затем открой /?egg=7&edit=1"
+          : "Открой через бота @flt_garden_bot → «Открыть сад»";
     }
   }
 

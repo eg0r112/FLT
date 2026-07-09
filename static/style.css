@@ -207,8 +207,48 @@ body {
 }
 
 .egg-edit-panel__coords {
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   color: var(--text-light);
+}
+
+.egg-edit-panel__size {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.egg-edit-panel__size-label {
+  font-weight: 700;
+  color: var(--text);
+  margin-right: 4px;
+}
+
+.egg-edit-panel__size-val {
+  min-width: 52px;
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  color: var(--text);
+}
+
+.egg-edit-panel__size-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 10px;
+  background: #f1f3f5;
+  color: var(--text);
+  font-size: 1.2rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.egg-edit-panel__size-btn:active {
+  transform: scale(0.94);
+  background: #e9ecef;
 }
 
 .egg-edit-panel__hint {
