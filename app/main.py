@@ -24,6 +24,7 @@ from app.ads import (
     send_message,
     set_blocked,
 )
+from app.easter import claim_easter_egg, get_active_easter_egg, get_found_egg_ids
 from app.services import (
     build_display_name,
     build_shop_state,
@@ -234,6 +235,10 @@ async def api_me(
 
     admin = is_admin(telegram_id, settings)
     ads_unread = await count_admin_unread() if admin else 0
+    easter_egg = await get_active_easter_egg(
+        db_user["id"], telegram_id, is_admin=admin
+    )
+    easter_found_count = len(await get_found_egg_ids(db_user["id"]))
 
     return {
         "user": {
@@ -265,6 +270,9 @@ async def api_me(
         "referral_link": _referral_link(telegram_id, settings),
         "bot_username": _bot_username(settings),
         "ads_unread": ads_unread,
+        "easter_egg": easter_egg,
+        "easter_found": easter_found_count,
+        "easter_total": 37,
     }
 
 
@@ -421,6 +429,21 @@ async def api_water_self(
         raise HTTPException(404, "User not found")
 
     result = await water_own_plant(user["id"], plant_id)
+    if not result["ok"]:
+        raise HTTPException(400, detail=result)
+    return result
+
+
+@app.post("/api/easter-egg/claim")
+async def api_easter_egg_claim(
+    tg_user: dict = Depends(get_tg_user),
+    egg_id: int = Query(..., ge=1, le=37),
+):
+    user = await get_user_by_telegram(tg_user["id"])
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    result = await claim_easter_egg(user["id"], egg_id)
     if not result["ok"]:
         raise HTTPException(400, detail=result)
     return result

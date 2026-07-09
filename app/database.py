@@ -141,6 +141,20 @@ CREATE TABLE IF NOT EXISTS ad_messages (
     created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_ad_msg_conv ON ad_messages(conversation_id, created_at);
+
+CREATE TABLE IF NOT EXISTS easter_egg_finds (
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    egg_id INTEGER NOT NULL,
+    found_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, egg_id)
+);
+CREATE INDEX IF NOT EXISTS idx_easter_finds_user ON easter_egg_finds(user_id);
+
+CREATE TABLE IF NOT EXISTS easter_egg_active (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id),
+    egg_id INTEGER NOT NULL,
+    assigned_at INTEGER NOT NULL
+);
 """
 
 _EXTRA_TABLES_PG = """
@@ -163,6 +177,20 @@ CREATE TABLE IF NOT EXISTS ad_messages (
     created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_ad_msg_conv ON ad_messages(conversation_id, created_at);
+
+CREATE TABLE IF NOT EXISTS easter_egg_finds (
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    egg_id INTEGER NOT NULL,
+    found_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, egg_id)
+);
+CREATE INDEX IF NOT EXISTS idx_easter_finds_user ON easter_egg_finds(user_id);
+
+CREATE TABLE IF NOT EXISTS easter_egg_active (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id),
+    egg_id INTEGER NOT NULL,
+    assigned_at INTEGER NOT NULL
+);
 """
 
 
@@ -288,6 +316,8 @@ async def _ensure_app_settings(db: Any) -> None:
 
 async def reset_all_data(db: Any) -> None:
     tables = (
+        "easter_egg_finds",
+        "easter_egg_active",
         "ad_messages",
         "ad_conversations",
         "self_waterings",
@@ -299,7 +329,8 @@ async def reset_all_data(db: Any) -> None:
     if _backend == "postgres":
         async with db._pool.acquire() as conn:
             await conn.execute(
-                "TRUNCATE ad_messages, ad_conversations, self_waterings, waterings, "
+                "TRUNCATE easter_egg_finds, easter_egg_active, ad_messages, ad_conversations, "
+                "self_waterings, waterings, "
                 "plants, users, app_settings RESTART IDENTITY CASCADE"
             )
     else:

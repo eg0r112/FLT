@@ -542,6 +542,38 @@
     else showHarvestModal(plant);
   }
 
+  function renderEasterEgg(egg) {
+    const host = document.getElementById("meadow-eggs");
+    if (!host) return;
+    host.innerHTML = "";
+    if (!egg) return;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "meadow-egg";
+    btn.title = egg.name || "";
+    btn.style.left = `${egg.left}%`;
+    btn.style.top = `${egg.top}%`;
+    const size = egg.size || 48;
+    btn.style.width = `${size}px`;
+    btn.style.height = `${size}px`;
+    btn.innerHTML = `<img src="${egg.image}" alt="">`;
+    btn.addEventListener("click", () => claimEasterEgg(egg));
+    host.appendChild(btn);
+  }
+
+  async function claimEasterEgg(egg) {
+    if (!egg?.id) return;
+    try {
+      const res = await api("POST", `/api/easter-egg/claim?egg_id=${egg.id}`);
+      toast(`Найдено: ${res.egg.name} · ${res.found_total}/${res.total}`);
+      state.easter_egg = null;
+      if (state.easter_found != null) state.easter_found = res.found_total;
+      renderEasterEgg(null);
+    } catch (_) {
+      toast("Не удалось забрать пасхалку");
+    }
+  }
+
   function toast(msg) {
     let el = document.querySelector(".toast");
     if (!el) {
@@ -1322,6 +1354,7 @@
 
       if (ref && ref !== state.user.ref_code) setTab("plot");
       else render();
+      renderEasterEgg(state.easter_egg);
       ensureTickLoop();
       startAdPlane();
     } catch (e) {

@@ -9,6 +9,8 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from aiogram.types.error_event import ErrorEvent
 
 from app.config import Settings
+from app.easter import set_admin_egg_override
+from app.easter_eggs import EGG_COUNT
 from app.services import (
     admin_grant_all_plants,
     get_global_grown_total,
@@ -139,6 +141,20 @@ def register_handlers(dp: Dispatcher, settings: Settings) -> None:
                 f"✅ Выдано {count} растений в коллекцию (рандомные фоны).",
             )
             return
+
+        m_num = re.match(r"^(\d{1,2})$", text.strip())
+        if m_num:
+            egg_id = int(m_num.group(1))
+            if 1 <= egg_id <= EGG_COUNT:
+                egg = await set_admin_egg_override(message.from_user.id, egg_id)
+                if not egg:
+                    await safe_answer(message, f"❌ Нет пасхалки №{egg_id}")
+                    return
+                await safe_answer(
+                    message,
+                    f"🔎 Следующее открытие мини-аппа: №{egg_id} — {egg['name']}",
+                )
+                return
 
         m = re.match(r"редактировать\s+(\d+)", low)
         if m:
