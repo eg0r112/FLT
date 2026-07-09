@@ -1,2 +1,2 @@
 # Меняй при деплое UI — Telegram кэширует /static/app.js
-BUILD = "20260709-meadow"
+BUILD = "20260709-plants13"

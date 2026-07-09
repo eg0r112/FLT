@@ -73,6 +73,8 @@
     legendary: "Легендарное",
   };
 
+  const PLANT_PRICE_ORDER = [13, 3, 9, 10, 11, 8, 6, 5, 4, 2, 1, 12, 7];
+
   const RARITY_MARKET = {
     common: { weight: 60, base: 18 },
     uncommon: { weight: 25, base: 45 },
@@ -418,13 +420,29 @@
     return new Intl.NumberFormat("ru-RU").format(Math.max(0, Math.round(n || 0)));
   }
 
+  function variantPriceMult(variantId) {
+    if (!variantId) return 1;
+    const idx = PLANT_PRICE_ORDER.indexOf(Number(variantId));
+    if (idx < 0) return 1;
+    return 1 + idx * (0.45 / Math.max(1, PLANT_PRICE_ORDER.length - 1));
+  }
+
+  function plantArtHtml(plant, className = "seed-card__plant") {
+    const vid = plant?.plant_variant_id;
+    if (!vid) {
+      const rarity = plant?.rarity || "common";
+      return `<div class="${className} ${className}--emoji">${RARITY_EMOJI[rarity] || "🌿"}</div>`;
+    }
+    return `<img class="${className}" src="/static/images/plants/${vid}.png" alt="" loading="lazy">`;
+  }
+
   function getPlantPrice(plant) {
     const rarity = RARITY_MARKET[plant?.rarity] || RARITY_MARKET.common;
     const bg = BACKGROUND_MARKET[plant?.background_id] || BACKGROUND_MARKET[1];
     const rarityScarcity = 60 / rarity.weight;
     const bgScarcity = 22 / bg.weight;
     const comboBoost = Math.pow(rarityScarcity * bgScarcity, 0.38);
-    return Math.round(rarity.base * bg.mult * comboBoost);
+    return Math.round(rarity.base * bg.mult * comboBoost * variantPriceMult(plant?.plant_variant_id));
   }
 
   function getCollectionValue() {
@@ -499,7 +517,7 @@
         <div class="harvest-modal__title">🎉 Растение выросло!</div>
         <div class="harvest-modal__sub">Новый урожай в коллекции</div>
         <div class="harvest-modal__plant seed-card--${rarity}${tile.classExtra}" style="${tile.style}">
-          <div class="harvest-modal__emoji">${RARITY_EMOJI[rarity] || "🌿"}</div>
+          ${plantArtHtml(plant, "harvest-modal__plant-img")}
           <div class="harvest-modal__tag tag-${rarity}">${RARITY_LABEL[rarity] || rarity}</div>
           <div class="harvest-modal__bg">${bg.name}</div>
           <div class="harvest-modal__price">≈ ${formatNum(price)} ${coinHtml(true)}</div>
@@ -708,7 +726,7 @@
       const tile = plantBgAttrs(p.background_id);
       return `
       <div class="seed-card seed-card--${p.rarity}${tile.classExtra}" style="animation-delay:${i * 0.05}s;${tile.style}">
-        <div class="seed-card__emoji">${RARITY_EMOJI[p.rarity] || "🌿"}</div>
+        ${plantArtHtml(p)}
         <div class="seed-card__tag tag-${p.rarity}">${RARITY_LABEL[p.rarity] || p.rarity}</div>
         <div class="seed-card__bg">${bg.name}</div>
         <div class="seed-card__bg">≈ ${formatNum(price)} ${coinHtml(true)}</div>

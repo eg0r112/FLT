@@ -694,6 +694,7 @@ body {
   border: 2px solid #e8f5e9;
 }
 
+.harvest-modal__plant-img--emoji,
 .harvest-modal__emoji {
   font-size: 3.2rem;
   margin-bottom: 8px;
@@ -752,7 +753,7 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .sun, .cloud, .logo-emoji, .bed__sprite, .bed__sparkle, .loader-plant,
-  .ad-plane__banner-wrap, .ad-plane__body, .harvest-modal__emoji {
+  .ad-plane__banner-wrap, .ad-plane__body, .harvest-modal__plant-img, .harvest-modal__emoji {
     animation: none !important;
   }
 }
@@ -813,6 +814,27 @@ body {
   color: #fff;
 }
 
+.seed-card__plant,
+.harvest-modal__plant-img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  margin: 0 auto 4px;
+  display: block;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.18));
+}
+
+.harvest-modal__plant-img {
+  width: 96px;
+  height: 96px;
+  animation: bounce 0.8s ease infinite;
+}
+
+.seed-card--bgimg .seed-card__plant {
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.45));
+}
+
+.seed-card__plant--emoji,
 .seed-card__emoji { font-size: 1.8rem; margin-bottom: 4px; }
 
 .seed-card__tag {

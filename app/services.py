@@ -10,6 +10,11 @@ from typing import Any
 from app.config import get_settings
 from app.database import get_db
 from app.market import plant_market_price
+from app.plants import (
+    ALL_VARIANT_IDS,
+    rarity_for_variant,
+    roll_variant_for_rarity,
+)
 
 NOW = lambda: int(time.time())
 
@@ -337,7 +342,8 @@ async def get_or_create_user(
 async def get_growing_plants(user_id: int) -> list[dict]:
     db = await get_db()
     cur = await db.execute(
-        "SELECT id, user_id, status, rarity, background_id, planted_at, ready_at, plot_slot "
+        "SELECT id, user_id, status, rarity, background_id, plant_variant_id, "
+        "planted_at, ready_at, plot_slot "
         "FROM plants WHERE user_id = ? AND status = 'growing' ORDER BY plot_slot",
         (user_id,),
     )
@@ -353,7 +359,8 @@ async def get_growing_plant(user_id: int) -> dict | None:
 async def get_growing_plant_by_id(user_id: int, plant_id: int) -> dict | None:
     db = await get_db()
     cur = await db.execute(
-        "SELECT id, user_id, status, rarity, background_id, planted_at, ready_at, plot_slot "
+        "SELECT id, user_id, status, rarity, background_id, plant_variant_id, "
+        "planted_at, ready_at, plot_slot "
         "FROM plants WHERE user_id = ? AND id = ? AND status = 'growing'",
         (user_id, plant_id),
     )
@@ -364,7 +371,8 @@ async def get_growing_plant_by_id(user_id: int, plant_id: int) -> dict | None:
 async def get_ready_plants(user_id: int) -> list[dict]:
     db = await get_db()
     cur = await db.execute(
-        "SELECT id, user_id, status, rarity, background_id, planted_at, ready_at, plot_slot "
+        "SELECT id, user_id, status, rarity, background_id, plant_variant_id, "
+        "planted_at, ready_at, plot_slot "
         "FROM plants WHERE user_id = ? AND status = 'ready' ORDER BY ready_at DESC",
         (user_id,),
     )
@@ -404,6 +412,7 @@ async def plant_seed(user_id: int, plot_slot: int = 1) -> dict | None:
         "status": "growing",
         "rarity": None,
         "background_id": None,
+        "plant_variant_id": None,
         "planted_at": now,
         "ready_at": ready_at,
         "plot_slot": plot_slot,
@@ -415,7 +424,8 @@ async def finalize_ready_plants(user_id: int) -> list[dict]:
     db = await get_db()
     now = NOW()
     cur = await db.execute(
-        "SELECT id, user_id, status, rarity, background_id, planted_at, ready_at, plot_slot "
+        "SELECT id, user_id, status, rarity, background_id, plant_variant_id, "
+        "planted_at, ready_at, plot_slot "
         "FROM plants WHERE user_id = ? AND status = 'growing' AND ready_at <= ?",
         (user_id, now),
     )
@@ -425,14 +435,17 @@ async def finalize_ready_plants(user_id: int) -> list[dict]:
 
     for plant in plants:
         rarity = roll_rarity()
+        variant_id = roll_variant_for_rarity(rarity)
         bg = roll_background()
         await db.execute(
-            "UPDATE plants SET status = 'ready', rarity = ?, background_id = ? WHERE id = ?",
-            (rarity, bg, plant["id"]),
+            "UPDATE plants SET status = 'ready', rarity = ?, background_id = ?, "
+            "plant_variant_id = ? WHERE id = ?",
+            (rarity, bg, variant_id, plant["id"]),
         )
         plant["status"] = "ready"
         plant["rarity"] = rarity
         plant["background_id"] = bg
+        plant["plant_variant_id"] = variant_id
     await increment_global_grown(len(plants))
     await db.commit()
     return plants
@@ -606,14 +619,18 @@ LEADERBOARD_JSON_KEY = "leaderboard_json"
 async def _compute_leaderboard_top10() -> list[dict]:
     db = await get_db()
     cur = await db.execute(
-        "SELECT user_id, rarity, background_id FROM plants WHERE status = 'ready'"
+        "SELECT user_id, rarity, background_id, plant_variant_id FROM plants WHERE status = 'ready'"
     )
     rows = await cur.fetchall()
     values: dict[int, int] = {}
     counts: dict[int, int] = {}
     for row in rows:
         uid = int(row["user_id"])
-        price = plant_market_price(row.get("rarity"), row.get("background_id"))
+        price = plant_market_price(
+            row.get("rarity"),
+            row.get("background_id"),
+            row.get("plant_variant_id"),
+        )
         values[uid] = values.get(uid, 0) + price
         counts[uid] = counts.get(uid, 0) + 1
 
@@ -658,3 +675,24 @@ async def get_leaderboard(now_ts: int | None = None) -> dict:
         "next_update_at": next_update,
         "entries": entries,
     }
+
+
+async def admin_grant_all_plants(telegram_id: int) -> tuple[int, str | None]:
+    """Admin: выдать по одному экземпляру каждого из 13 растений."""
+    user = await get_user_by_telegram(telegram_id)
+    if not user:
+        return 0, "no_user"
+
+    db = await get_db()
+    now = NOW()
+    for variant_id in ALL_VARIANT_IDS:
+        rarity = rarity_for_variant(variant_id)
+        bg = roll_background()
+        await db.execute(
+            "INSERT INTO plants (user_id, status, rarity, background_id, "
+            "plant_variant_id, planted_at, ready_at, plot_slot) "
+            "VALUES (?, 'ready', ?, ?, ?, ?, ?, 0)",
+            (user["id"], rarity, bg, variant_id, now, now),
+        )
+    await db.commit()
+    return len(ALL_VARIANT_IDS), None

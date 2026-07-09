@@ -22,10 +22,21 @@ BACKGROUND_MARKET: dict[int, dict[str, float | int]] = {
 }
 
 
-def plant_market_price(rarity: str | None, background_id: int | None) -> int:
+def plant_market_price(
+    rarity: str | None,
+    background_id: int | None,
+    variant_id: int | None = None,
+) -> int:
+    from app.plants import variant_price_mult
+
     r = RARITY_MARKET.get(rarity or "common", RARITY_MARKET["common"])
     bg = BACKGROUND_MARKET.get(int(background_id or 1), BACKGROUND_MARKET[1])
     rarity_scarcity = 60 / float(r["weight"])
     bg_scarcity = 22 / float(bg["weight"])
     combo_boost = (rarity_scarcity * bg_scarcity) ** 0.38
-    return round(float(r["base"]) * float(bg["mult"]) * combo_boost)
+    return round(
+        float(r["base"])
+        * float(bg["mult"])
+        * combo_boost
+        * variant_price_mult(variant_id)
+    )

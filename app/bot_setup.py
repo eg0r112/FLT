@@ -9,7 +9,11 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from aiogram.types.error_event import ErrorEvent
 
 from app.config import Settings
-from app.services import get_global_grown_total, set_global_grown_total
+from app.services import (
+    admin_grant_all_plants,
+    get_global_grown_total,
+    set_global_grown_total,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +123,20 @@ def register_handlers(dp: Dispatcher, settings: Settings) -> None:
             await safe_answer(
                 message,
                 f"🌍 Выращено в мире: {total:,}".replace(",", " "),
+            )
+            return
+
+        if low == "все":
+            count, err = await admin_grant_all_plants(message.from_user.id)
+            if err == "no_user":
+                await safe_answer(
+                    message,
+                    "Сначала открой мини-апп хотя бы раз — нужен аккаунт в базе.",
+                )
+                return
+            await safe_answer(
+                message,
+                f"✅ Выдано {count} растений в коллекцию (рандомные фоны).",
             )
             return
 
