@@ -135,79 +135,6 @@
 
   const SPACE_LEGENDARY_PRICE_MULT = 1.5;
 
-  const SPACE_PLANT_URLS = [1, 2, 3, 4, 5, 6].map(
-    (n) => `/static/images/plants/space/${n}.png`,
-  );
-  const COSMIC_BG_URL = "/static/images/bg/11.png";
-  const LOADER_MIN_MS = 700;
-  let spaceAssetsPreloaded = false;
-
-  function preloadImage(url) {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = img.onerror = () => resolve();
-      img.src = url;
-    });
-  }
-
-  function preloadImages(urls) {
-    const unique = [...new Set(urls.filter(Boolean))];
-    if (!unique.length) return Promise.resolve();
-    return Promise.all(unique.map(preloadImage));
-  }
-
-  async function preloadSpaceAssets() {
-    if (spaceAssetsPreloaded) return;
-    spaceAssetsPreloaded = true;
-    await preloadImages([...SPACE_PLANT_URLS, COSMIC_BG_URL]);
-  }
-
-  function collectStartupAssetUrls(userState) {
-    const urls = [];
-    const plants = [
-      ...(userState?.ready_plants || []),
-      ...(userState?.growing_plants || []),
-    ];
-    for (const p of plants) {
-      const vid = Number(p?.plant_variant_id);
-      if (vid >= 101) {
-        if (userState?.portal_dimension) {
-          urls.push(`/static/images/plants/space/${vid - 100}.png`);
-        }
-      } else if (vid) {
-        urls.push(`/static/images/plants/${vid}.png`);
-      }
-      const bg = BACKGROUND_MARKET[p?.background_id] || BACKGROUND_MARKET[1];
-      if (bg?.image) {
-        if (p?.background_id !== 11 || userState?.portal_dimension) {
-          urls.push(`/static/images/bg/${bg.image}`);
-        }
-      }
-    }
-    if (userState?.portal_dimension) {
-      urls.push(...SPACE_PLANT_URLS, COSMIC_BG_URL);
-    }
-    return urls;
-  }
-
-  function setLoaderText(text) {
-    const p = loader?.querySelector("p");
-    if (p) p.textContent = text;
-  }
-
-  function hideLoader() {
-    if (!loader?.parentNode) return;
-    loader.classList.add("loader--out");
-    const done = () => loader.remove();
-    loader.addEventListener("transitionend", done, { once: true });
-    setTimeout(done, 450);
-  }
-
-  async function waitForLoaderMin(startedAt) {
-    const left = LOADER_MIN_MS - (Date.now() - startedAt);
-    if (left > 0) await new Promise((r) => setTimeout(r, left));
-  }
-
   function plantBgAttrs(backgroundId) {
     const bg = BACKGROUND_MARKET[backgroundId] || BACKGROUND_MARKET[1];
     if (!bg.image) return { classExtra: "", style: "" };
@@ -1188,10 +1115,6 @@
       state.portal_dimension = Boolean(toggle.portal_dimension);
       applyPortalDimension(state.portal_dimension);
       markPortalSessionUsed();
-      if (state.portal_dimension) {
-        toast("🌀 Загрузка измерения…");
-        await preloadSpaceAssets();
-      }
       await resolveEasterEggDisplay();
       playPortalFlash();
       toast(
@@ -1990,7 +1913,6 @@
   });
 
   async function init() {
-    const loaderStarted = Date.now();
     const tg = getTg();
     if (tg?.initData) {
       tg.ready();
@@ -2012,13 +1934,7 @@
 
       state = await mePromise;
       updateHeader();
-      setLoaderText("Готовим грядки…");
-      await Promise.all([
-        preloadImages(collectStartupAssetUrls(state)),
-        waitForLoaderMin(loaderStarted),
-      ]);
-      if (state.portal_dimension) spaceAssetsPreloaded = true;
-      hideLoader();
+      loader.remove();
       tabbar.hidden = false;
 
       const stats = await statsPromise;
