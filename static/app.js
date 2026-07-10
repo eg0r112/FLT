@@ -657,12 +657,23 @@
     return Math.min(98, Math.max(minTop, top));
   }
 
-  function setEggPosition(btn, left, top) {
+  function skyEscapeTop(size) {
+    const halfPx = (size || 48) / 2;
+    const margin = 20;
+    return -((halfPx + margin) / window.innerHeight) * 100;
+  }
+
+  function eggAnimRaw(btn) {
+    return btn.dataset.animOffScreen === "1";
+  }
+
+  function setEggPosition(btn, left, top, opts = {}) {
     btn.style.left = `${left}%`;
     const size = parseInt(btn.style.width, 10) || 48;
     const anchor = btn.dataset.anchor || "center";
+    const raw = opts.raw || eggAnimRaw(btn);
     const viewportTop =
-      btn.dataset.zone === "sky"
+      btn.dataset.zone === "sky" && !raw
         ? clampSkyEggTop(top, size, anchor)
         : top;
     btn.dataset.viewportTop = String(viewportTop);
@@ -674,7 +685,8 @@
     btn.style.top = `${viewportTop}%`;
   }
 
-  function animateEggSegment(btn, from, to, durationMs, token) {
+  function animateEggSegment(btn, from, to, durationMs, token, opts = {}) {
+    const raw = opts.raw ?? eggAnimRaw(btn);
     return new Promise((resolve) => {
       const start = performance.now();
       const step = (now) => {
@@ -685,7 +697,7 @@
         const t = Math.min(1, (now - start) / durationMs);
         const left = from.left + (to.left - from.left) * t;
         const top = from.top + (to.top - from.top) * t;
-        setEggPosition(btn, left, top);
+        setEggPosition(btn, left, top, { raw });
         if (t < 1) requestAnimationFrame(step);
         else resolve(true);
       };
@@ -699,6 +711,7 @@
 
     const token = { cancelled: false };
     let escaping = false;
+    const raw = Boolean(anim.offScreen);
 
     const getPos = () => ({
       left: parseFloat(btn.style.left),
@@ -706,9 +719,10 @@
     });
 
     const runLoop = async () => {
-      setEggPosition(btn, egg.left, egg.top);
+      const start = anim.start || { left: egg.left, top: egg.top };
+      setEggPosition(btn, start.left, start.top, { raw });
       while (!token.cancelled) {
-        let from = { left: egg.left, top: egg.top };
+        let from = { left: start.left, top: start.top };
         for (const seg of anim.segments) {
           if (token.cancelled) return;
           let durationMs = (seg.duration || 0) * 1000;
@@ -717,7 +731,7 @@
               seg.durationMin + Math.random() * (seg.durationMax - seg.durationMin);
             durationMs = sec * 1000;
           }
-          const ok = await animateEggSegment(btn, from, seg.to, durationMs, token);
+          const ok = await animateEggSegment(btn, from, seg.to, durationMs, token, { raw });
           if (!ok) return;
           from = seg.to;
         }
@@ -733,14 +747,21 @@
 
     const onClick = async () => {
       if (escaping) return;
-      if (egg.id === 20 && anim.clickEscape) {
+      if (anim.clickEscape) {
         escaping = true;
         token.cancelled = true;
         const from = getPos();
-        const to = { left: from.left, top: anim.clickEscape.top };
+        const size = parseInt(btn.style.width, 10) || 48;
+        const to = {
+          left: from.left,
+          top:
+            anim.clickEscape.top != null
+              ? anim.clickEscape.top
+              : skyEscapeTop(size),
+        };
         await animateEggSegment(btn, from, to, anim.clickEscape.duration * 1000, {
           cancelled: false,
-        });
+        }, { raw: true });
         await claimEasterEgg(egg);
         return;
       }
@@ -774,6 +795,7 @@
     btn.style.width = `${size}px`;
     btn.style.height = `${size}px`;
     btn.dataset.catalogTop = String(egg.top);
+    if (egg.animation?.offScreen) btn.dataset.animOffScreen = "1";
     if (egg.anchor === "top") btn.classList.add("meadow-egg--anchor-top");
     setEggPosition(btn, egg.left, egg.top);
 

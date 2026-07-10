@@ -90,6 +90,8 @@
       "type": "path",
       "loop": false,
       "hideAfter": true,
+      "offScreen": true,
+      "start": { "left": -10, "top": 20.8 },
       "segments": [
         {
           "durationMin": 30,
@@ -170,39 +172,22 @@
     "id": 20,
     "name": "НЛО",
     "image": "/static/images/easter/20.png",
-    "left": 70.2,
+    "left": 112,
     "top": 2.1,
     "size": 48,
     "animation": {
       "type": "path",
       "loop": true,
+      "offScreen": true,
+      "start": { "left": 112, "top": 2.1 },
       "segments": [
-        {
-          "duration": 8,
-          "to": {
-            "left": 30.3,
-            "top": 13.7
-          }
-        },
-        {
-          "duration": 8,
-          "to": {
-            "left": 67.7,
-            "top": 11.6
-          }
-        },
-        {
-          "duration": 8,
-          "to": {
-            "left": 70.2,
-            "top": 2.1
-          }
-        }
+        { "duration": 7, "to": { "left": 70.2, "top": 2.1 } },
+        { "duration": 7, "to": { "left": 30.3, "top": 13.7 } },
+        { "duration": 7, "to": { "left": -12, "top": 13.7 } },
+        { "duration": 7, "to": { "left": 67.7, "top": 11.6 } },
+        { "duration": 7, "to": { "left": 112, "top": 2.1 } }
       ],
-      "clickEscape": {
-        "top": -14,
-        "duration": 2
-      }
+      "clickEscape": { "duration": 2 }
     }
   },
   {
