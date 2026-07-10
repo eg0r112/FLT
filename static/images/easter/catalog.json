@@ -197,7 +197,8 @@
     "left": 57.3,
     "topPx": 46,
     "size": 80,
-    "anchor": "top"
+    "anchor": "top",
+    "layer": "sky"
   },
   {
     "id": 22,

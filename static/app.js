@@ -575,6 +575,7 @@
     if (!egg) return false;
     if (egg.layer === "grass") return true;
     if (egg.layer === "sky") return false;
+    if (egg.topPx != null) return false;
     const top = egg.top ?? 50;
     if (top < HORIZON_Y + 3) return false;
     if (egg.animation?.type === "path") {
