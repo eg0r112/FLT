@@ -1,2 +1,2 @@
 # Меняй при деплое UI — Telegram кэширует /static/app.js
-BUILD = "20260710-portal-exit-hide-egg"
+BUILD = "20260710-portal-session-hide"

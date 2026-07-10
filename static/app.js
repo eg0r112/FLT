@@ -25,6 +25,30 @@
   let adsMessages = [];
   let adsBlocked = false;
   let portalExitedThisSession = false;
+  const PORTAL_EGG_HIDDEN_KEY = "garden_portal_exited_v1";
+
+  function markPortalSessionUsed() {
+    portalExitedThisSession = true;
+    try {
+      sessionStorage.setItem(PORTAL_EGG_HIDDEN_KEY, "1");
+    } catch (_) {}
+  }
+
+  function clearPortalSessionUsed() {
+    portalExitedThisSession = false;
+    try {
+      sessionStorage.removeItem(PORTAL_EGG_HIDDEN_KEY);
+    } catch (_) {}
+  }
+
+  function readPortalSessionUsed() {
+    if (portalExitedThisSession) return true;
+    try {
+      return sessionStorage.getItem(PORTAL_EGG_HIDDEN_KEY) === "1";
+    } catch (_) {
+      return false;
+    }
+  }
 
   const TABS = ["garden", "plot", "friends", "shop", "profile"];
   const PORTAL_EGG_ID = 27;
@@ -612,23 +636,6 @@
     return catalog.find((e) => e.id === id) || null;
   }
 
-  async function eggForDisplay(egg) {
-    if (!egg?.id) return null;
-    return (await fetchEggFromCatalog(egg.id)) || egg;
-  }
-
-  async function refreshSessionEasterEgg() {
-    const ref = parseRef();
-    const params = new URLSearchParams();
-    if (ref) params.set("ref", String(ref));
-    const q = params.toString();
-    const me = await api("GET", "/api/me" + (q ? `?${q}` : ""));
-    if (me?.easter_egg) state.easter_egg = me.easter_egg;
-    if (me?.portal_dimension != null) {
-      state.portal_dimension = Boolean(me.portal_dimension);
-    }
-  }
-
   const HORIZON_Y = 38;
   const MEADOW_BAND = 100 - HORIZON_Y;
   let meadowScrollBound = false;
@@ -1063,13 +1070,11 @@
         return;
       }
     }
-    let egg = await eggForDisplay(state?.easter_egg);
-    if (!egg) {
-      await refreshSessionEasterEgg();
-      egg = await eggForDisplay(state?.easter_egg);
+    if (portalExitedThisSession) {
+      clearEggHosts();
+      return;
     }
-    renderEasterEgg(egg);
-    updateGrassEggVisibility();
+    renderEasterEgg(state?.easter_egg);
   }
 
   function playPortalFlash() {
@@ -1109,7 +1114,7 @@
       const toggle = await api("POST", "/api/portal/toggle");
       state.portal_dimension = Boolean(toggle.portal_dimension);
       applyPortalDimension(state.portal_dimension);
-      await refreshSessionEasterEgg();
+      if (!state.portal_dimension) portalExitedThisSession = true;
       await resolveEasterEggDisplay();
       playPortalFlash();
       toast(
