@@ -195,7 +195,7 @@
     "name": "паучок",
     "image": "/static/images/easter/21.png",
     "left": 57.3,
-    "top": -1.8,
+    "topPx": 46,
     "size": 80,
     "anchor": "top"
   },

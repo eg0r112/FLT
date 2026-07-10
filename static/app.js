@@ -596,7 +596,10 @@
     if (!grid) return false;
 
     const viewportTop = parseFloat(btn.dataset.viewportTop || "0");
-    const eggY = (viewportTop / 100) * window.innerHeight;
+    const eggY =
+      btn.dataset.viewportTopUnit === "px"
+        ? viewportTop
+        : (viewportTop / 100) * window.innerHeight;
     const meadowTop = (HORIZON_Y / 100) * window.innerHeight;
     const meadowBottom = window.innerHeight;
 
@@ -630,6 +633,7 @@
     const tick = () => {
       updateGrassEggVisibility();
       document.querySelectorAll(".meadow-egg--sky").forEach((btn) => {
+        if (btn.dataset.topPx) return;
         const left = parseFloat(btn.style.left);
         const catalogTop = parseFloat(btn.dataset.catalogTop || btn.dataset.viewportTop);
         if (!Number.isNaN(left) && !Number.isNaN(catalogTop)) {
@@ -669,6 +673,16 @@
 
   function setEggPosition(btn, left, top, opts = {}) {
     btn.style.left = `${left}%`;
+    const topPxMode = btn.dataset.topPx != null && btn.dataset.topPx !== "";
+
+    if (topPxMode) {
+      const y = Math.round(top);
+      btn.dataset.viewportTop = String(y);
+      btn.dataset.viewportTopUnit = "px";
+      btn.style.top = `${y}px`;
+      return;
+    }
+
     const size = parseInt(btn.style.width, 10) || 48;
     const anchor = btn.dataset.anchor || "center";
     const raw = opts.raw || eggAnimRaw(btn);
@@ -677,6 +691,7 @@
         ? clampSkyEggTop(top, size, anchor)
         : top;
     btn.dataset.viewportTop = String(viewportTop);
+    btn.dataset.viewportTopUnit = "pct";
     if (btn.dataset.zone === "grass") {
       btn.style.top = `${viewportTopToMeadow(viewportTop)}%`;
       updateGrassEggVisibility(btn);
@@ -802,10 +817,11 @@
     const size = egg.size || 48;
     btn.style.width = `${size}px`;
     btn.style.height = `${size}px`;
-    btn.dataset.catalogTop = String(egg.top);
+    btn.dataset.catalogTop = String(egg.topPx != null ? egg.topPx : egg.top);
+    if (egg.topPx != null) btn.dataset.topPx = String(egg.topPx);
     if (egg.animation?.offScreen) btn.dataset.animOffScreen = "1";
     if (egg.anchor === "top") btn.classList.add("meadow-egg--anchor-top");
-    setEggPosition(btn, egg.left, egg.top);
+    setEggPosition(btn, egg.left, egg.topPx != null ? egg.topPx : egg.top);
 
     if (egg.effect === "smoke") {
       btn.innerHTML = `<span class="meadow-egg__smoke" aria-hidden="true"></span><img src="${egg.image}" alt="">`;
@@ -855,14 +871,19 @@
     const coordsEl = panel.querySelector(".egg-edit-panel__coords");
     const sizeValEl = panel.querySelector(".egg-edit-panel__size-val");
 
-    const readPos = () => ({
-      left: Math.round(parseFloat(btn.style.left) * 10) / 10,
-      top:
-        Math.round(
-          parseFloat(btn.dataset.viewportTop || btn.style.top) * 10,
-        ) / 10,
-      size: parseInt(btn.style.width, 10) || 48,
-    });
+    const readPos = () => {
+      const usePx = btn.dataset.topPx != null && btn.dataset.topPx !== "";
+      return {
+        left: Math.round(parseFloat(btn.style.left) * 10) / 10,
+        top: usePx
+          ? Math.round(parseFloat(btn.dataset.viewportTop || btn.style.top))
+          : Math.round(
+              parseFloat(btn.dataset.viewportTop || btn.style.top) * 10,
+            ) / 10,
+        topPx: usePx,
+        size: parseInt(btn.style.width, 10) || 48,
+      };
+    };
 
     const applySize = (next) => {
       const size = Math.min(128, Math.max(20, Math.round(next)));
@@ -873,23 +894,23 @@
 
     const snippet = () => {
       const p = readPos();
-      return JSON.stringify(
-        {
-          id: egg.id,
-          name: egg.name,
-          image: egg.image,
-          left: p.left,
-          top: p.top,
-          size: p.size,
-        },
-        null,
-        2,
-      );
+      const block = {
+        id: egg.id,
+        name: egg.name,
+        image: egg.image,
+        left: p.left,
+        size: p.size,
+      };
+      if (p.topPx) block.topPx = p.top;
+      else block.top = p.top;
+      if (egg.anchor) block.anchor = egg.anchor;
+      return JSON.stringify(block, null, 2);
     };
 
     const refreshPanel = () => {
       const p = readPos();
-      coordsEl.innerHTML = `left: <b>${p.left}</b>% · top: <b>${p.top}</b>% · size: <b>${p.size}</b>px`;
+      const topLabel = p.topPx ? `${p.top}px` : `${p.top}%`;
+      coordsEl.innerHTML = `left: <b>${p.left}</b>% · top: <b>${topLabel}</b> · size: <b>${p.size}</b>px`;
       sizeValEl.textContent = `${p.size}px`;
     };
 
@@ -928,8 +949,16 @@
     btn.addEventListener("pointermove", (e) => {
       if (!dragging) return;
       const left = Math.min(98, Math.max(2, (e.clientX / window.innerWidth) * 100));
-      const top = Math.min(98, Math.max(2, (e.clientY / window.innerHeight) * 100));
-      setEggPosition(btn, left, top);
+      if (btn.dataset.topPx != null && btn.dataset.topPx !== "") {
+        const topPx = Math.min(
+          window.innerHeight - 20,
+          Math.max(0, Math.round(e.clientY)),
+        );
+        setEggPosition(btn, left, topPx);
+      } else {
+        const top = Math.min(98, Math.max(2, (e.clientY / window.innerHeight) * 100));
+        setEggPosition(btn, left, top);
+      }
       refreshPanel();
     });
     const stopDrag = (e) => {
