@@ -188,6 +188,7 @@ body {
 
 .meadow-egg--anchor-top {
   transform: translate(-50%, 0);
+  top: calc(var(--egg-top-px, 0px) + env(safe-area-inset-top, 0px));
 }
 
 .meadow-egg img {

@@ -680,7 +680,8 @@
       const y = Math.round(top);
       btn.dataset.viewportTop = String(y);
       btn.dataset.viewportTopUnit = "px";
-      btn.style.top = `${y}px`;
+      btn.style.setProperty("--egg-top-px", `${y}px`);
+      btn.style.top = `calc(${y}px + env(safe-area-inset-top, 0px))`;
       return;
     }
 
