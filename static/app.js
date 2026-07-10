@@ -647,9 +647,13 @@
     document.getElementById("egg-edit-panel")?.remove();
   }
 
-  function clampSkyEggTop(top, size) {
+  function clampSkyEggTop(top, size, anchor) {
+    const margin = anchor === "top" ? 4 : 10;
+    if (anchor === "top") {
+      const minTop = (margin / window.innerHeight) * 100;
+      return Math.min(98, Math.max(minTop, top));
+    }
     const halfPx = (size || 48) / 2;
-    const margin = 10;
     const minTop = ((halfPx + margin) / window.innerHeight) * 100;
     return Math.min(98, Math.max(minTop, top));
   }
@@ -657,8 +661,11 @@
   function setEggPosition(btn, left, top) {
     btn.style.left = `${left}%`;
     const size = parseInt(btn.style.width, 10) || 48;
+    const anchor = btn.dataset.anchor || "center";
     const viewportTop =
-      btn.dataset.zone === "sky" ? clampSkyEggTop(top, size) : top;
+      btn.dataset.zone === "sky"
+        ? clampSkyEggTop(top, size, anchor)
+        : top;
     btn.dataset.viewportTop = String(viewportTop);
     if (btn.dataset.zone === "grass") {
       btn.style.top = `${viewportTopToMeadow(viewportTop)}%`;
@@ -762,11 +769,13 @@
     if (egg.effect === "smoke") className += " meadow-egg--smoke";
     btn.className = className;
     btn.dataset.zone = grass ? "grass" : "sky";
+    if (egg.anchor) btn.dataset.anchor = egg.anchor;
     btn.title = egg.name || "";
     const size = egg.size || 48;
     btn.style.width = `${size}px`;
     btn.style.height = `${size}px`;
     btn.dataset.catalogTop = String(egg.top);
+    if (egg.anchor === "top") btn.classList.add("meadow-egg--anchor-top");
     setEggPosition(btn, egg.left, egg.top);
 
     if (egg.effect === "smoke") {
