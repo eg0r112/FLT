@@ -1,2 +1,2 @@
 # Меняй при деплое UI — Telegram кэширует /static/app.js
-BUILD = "20260710-profile-egg-up"
+BUILD = "20260710-profile-egg-up2"

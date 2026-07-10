@@ -603,7 +603,7 @@
     if (eggY < meadowTop || eggY > meadowBottom) return false;
 
     const gridRect = grid.getBoundingClientRect();
-    const scrollUpHidePx = Math.max(36, window.innerHeight * 0.06);
+    const scrollUpHidePx = Math.max(56, window.innerHeight * 0.12);
     const scrollDownHidePx = 16;
     const hideWhenGridTopAbove = eggY - scrollUpHidePx;
 
