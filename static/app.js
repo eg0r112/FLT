@@ -745,7 +745,9 @@
 
     runLoop();
 
-    const onClick = async () => {
+    const onClick = async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       if (escaping) return;
       if (anim.clickEscape) {
         escaping = true;
@@ -759,13 +761,19 @@
               ? anim.clickEscape.top
               : skyEscapeTop(size),
         };
-        await animateEggSegment(btn, from, to, anim.clickEscape.duration * 1000, {
-          cancelled: false,
-        }, { raw: true });
+        const escapeMs = anim.clickEscape.duration * 1000;
         await claimEasterEgg(egg);
+        await animateEggSegment(
+          btn,
+          from,
+          to,
+          escapeMs,
+          { cancelled: false },
+          { raw: true },
+        );
         return;
       }
-      claimEasterEgg(egg);
+      await claimEasterEgg(egg);
     };
 
     return { token, onClick };
