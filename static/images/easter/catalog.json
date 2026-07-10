@@ -194,8 +194,8 @@
     "id": 21,
     "name": "паучок",
     "image": "/static/images/easter/21.png",
-    "left": 51,
-    "topPx": 8,
+    "left": 56,
+    "topPx": 2,
     "size": 80,
     "anchor": "top",
     "layer": "sky"
