@@ -611,6 +611,23 @@
     return catalog.find((e) => e.id === id) || null;
   }
 
+  async function eggForDisplay(egg) {
+    if (!egg?.id) return null;
+    return (await fetchEggFromCatalog(egg.id)) || egg;
+  }
+
+  async function refreshSessionEasterEgg() {
+    const ref = parseRef();
+    const params = new URLSearchParams();
+    if (ref) params.set("ref", String(ref));
+    const q = params.toString();
+    const me = await api("GET", "/api/me" + (q ? `?${q}` : ""));
+    if (me?.easter_egg) state.easter_egg = me.easter_egg;
+    if (me?.portal_dimension != null) {
+      state.portal_dimension = Boolean(me.portal_dimension);
+    }
+  }
+
   const HORIZON_Y = 38;
   const MEADOW_BAND = 100 - HORIZON_Y;
   let meadowScrollBound = false;
@@ -1045,7 +1062,13 @@
         return;
       }
     }
-    renderEasterEgg(state?.easter_egg);
+    let egg = await eggForDisplay(state?.easter_egg);
+    if (!egg) {
+      await refreshSessionEasterEgg();
+      egg = await eggForDisplay(state?.easter_egg);
+    }
+    renderEasterEgg(egg);
+    updateGrassEggVisibility();
   }
 
   function playPortalFlash() {
@@ -1085,6 +1108,7 @@
       const toggle = await api("POST", "/api/portal/toggle");
       state.portal_dimension = Boolean(toggle.portal_dimension);
       applyPortalDimension(state.portal_dimension);
+      await refreshSessionEasterEgg();
       await resolveEasterEggDisplay();
       playPortalFlash();
       toast(
