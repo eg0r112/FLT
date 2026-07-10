@@ -41,15 +41,19 @@ for eid, left, top, size in entries:
 
 by_id[11].update(
     {
-        "left": 31.6,
+        "left": -10,
         "top": 20.8,
         "size": 52,
         "animation": {
             "type": "path",
-            "loop": True,
+            "loop": False,
+            "hideAfter": True,
             "segments": [
-                {"durationMin": 30, "durationMax": 40, "to": {"left": 70.6, "top": 3.7}},
-                {"durationMin": 30, "durationMax": 40, "to": {"left": 31.6, "top": 20.8}},
+                {
+                    "durationMin": 30,
+                    "durationMax": 40,
+                    "to": {"left": 112, "top": 3.7},
+                },
             ],
         },
     }

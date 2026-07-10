@@ -617,6 +617,10 @@
         }
         if (!anim.loop) break;
       }
+      if (anim.hideAfter && !token.cancelled) {
+        btn.style.visibility = "hidden";
+        btn.style.pointerEvents = "none";
+      }
     };
 
     runLoop();

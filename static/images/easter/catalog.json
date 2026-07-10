@@ -83,27 +83,20 @@
     "id": 11,
     "name": "Дом",
     "image": "/static/images/easter/11.png",
-    "left": 31.6,
+    "left": -10,
     "top": 20.8,
     "size": 52,
     "animation": {
       "type": "path",
-      "loop": true,
+      "loop": false,
+      "hideAfter": true,
       "segments": [
         {
           "durationMin": 30,
           "durationMax": 40,
           "to": {
-            "left": 70.6,
+            "left": 112,
             "top": 3.7
-          }
-        },
-        {
-          "durationMin": 30,
-          "durationMax": 40,
-          "to": {
-            "left": 31.6,
-            "top": 20.8
           }
         }
       ]
