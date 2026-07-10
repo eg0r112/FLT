@@ -8,6 +8,8 @@ RARITY_MARKET: dict[str, dict[str, float | int]] = {
     "legendary": {"weight": 1, "base": 1200},
 }
 
+COSMIC_BACKGROUND_ID = 11
+
 BACKGROUND_MARKET: dict[int, dict[str, float | int]] = {
     1: {"weight": 22, "mult": 1.0},
     2: {"weight": 18, "mult": 1.08},
@@ -19,6 +21,7 @@ BACKGROUND_MARKET: dict[int, dict[str, float | int]] = {
     8: {"weight": 4, "mult": 2.4},
     9: {"weight": 3, "mult": 3.0},
     10: {"weight": 2, "mult": 3.8},
+    11: {"weight": 1, "mult": 8.0},
 }
 
 
@@ -27,9 +30,17 @@ def plant_market_price(
     background_id: int | None,
     variant_id: int | None = None,
 ) -> int:
-    from app.plants import variant_price_mult
+    from app.plants import (
+        is_space_variant,
+        space_market_rarity,
+        space_price_extra_mult,
+        variant_price_mult,
+    )
 
-    r = RARITY_MARKET.get(rarity or "common", RARITY_MARKET["common"])
+    eff_rarity = rarity or "common"
+    if is_space_variant(variant_id):
+        eff_rarity = space_market_rarity(eff_rarity)
+    r = RARITY_MARKET.get(eff_rarity, RARITY_MARKET["common"])
     bg = BACKGROUND_MARKET.get(int(background_id or 1), BACKGROUND_MARKET[1])
     rarity_scarcity = 60 / float(r["weight"])
     bg_scarcity = 22 / float(bg["weight"])
@@ -39,4 +50,5 @@ def plant_market_price(
         * float(bg["mult"])
         * combo_boost
         * variant_price_mult(variant_id)
+        * space_price_extra_mult(rarity or "common", variant_id)
     )

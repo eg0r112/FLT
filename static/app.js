@@ -95,7 +95,20 @@
     8: { name: "Фон 4", weight: 4, mult: 2.4, image: "8.jpg" },
     9: { name: "Фон 9", weight: 3, mult: 3.0, image: "9.jpg" },
     10: { name: "Фон 2", weight: 2, mult: 3.8, image: "10.jpg" },
+    11: { name: "Космос", weight: 1, mult: 8.0, image: "11.png" },
   };
+
+  const SPACE_VARIANT_IDS = [101, 102, 103, 104, 105, 106];
+
+  const SPACE_PRICE_RARITY = {
+    common: "uncommon",
+    uncommon: "rare",
+    rare: "epic",
+    epic: "legendary",
+    legendary: "legendary",
+  };
+
+  const SPACE_LEGENDARY_PRICE_MULT = 1.5;
 
   function plantBgAttrs(backgroundId) {
     const bg = BACKGROUND_MARKET[backgroundId] || BACKGROUND_MARKET[1];
@@ -422,28 +435,55 @@
   }
 
   function variantPriceMult(variantId) {
-    if (!variantId) return 1;
-    const idx = PLANT_PRICE_ORDER.indexOf(Number(variantId));
+    const vid = Number(variantId);
+    if (!variantId || vid >= 101) return 1;
+    const idx = PLANT_PRICE_ORDER.indexOf(vid);
     if (idx < 0) return 1;
     return 1 + idx * (0.45 / Math.max(1, PLANT_PRICE_ORDER.length - 1));
   }
 
+  function isSpacePlant(plant) {
+    return Number(plant?.plant_variant_id) >= 101;
+  }
+
+  function spaceMarketRarity(rarity) {
+    return SPACE_PRICE_RARITY[rarity] || rarity;
+  }
+
+  function spacePriceExtraMult(plant) {
+    if (!isSpacePlant(plant)) return 1;
+    if (plant?.rarity === "legendary") return SPACE_LEGENDARY_PRICE_MULT;
+    return 1;
+  }
+
+  function spaceTagHtml(rarity) {
+    const label = RARITY_LABEL[rarity] || rarity;
+    return `<div class="seed-card__tag seed-card__tag--space tag-${rarity}">${label} · 35-С</div>`;
+  }
+
   function plantArtHtml(plant, className = "seed-card__plant") {
-    const vid = plant?.plant_variant_id;
+    const vid = Number(plant?.plant_variant_id);
     if (!vid) {
       const rarity = plant?.rarity || "common";
       return `<div class="${className} ${className}--emoji">${RARITY_EMOJI[rarity] || "🌿"}</div>`;
+    }
+    if (vid >= 101) {
+      return `<img class="${className}" src="/static/images/plants/space/${vid - 100}.png" alt="" loading="lazy">`;
     }
     return `<img class="${className}" src="/static/images/plants/${vid}.png" alt="" loading="lazy">`;
   }
 
   function getPlantPrice(plant) {
-    const rarity = RARITY_MARKET[plant?.rarity] || RARITY_MARKET.common;
+    const rawRarity = plant?.rarity || "common";
+    const effRarity = isSpacePlant(plant) ? spaceMarketRarity(rawRarity) : rawRarity;
+    const rarity = RARITY_MARKET[effRarity] || RARITY_MARKET.common;
     const bg = BACKGROUND_MARKET[plant?.background_id] || BACKGROUND_MARKET[1];
     const rarityScarcity = 60 / rarity.weight;
     const bgScarcity = 22 / bg.weight;
     const comboBoost = Math.pow(rarityScarcity * bgScarcity, 0.38);
-    return Math.round(rarity.base * bg.mult * comboBoost * variantPriceMult(plant?.plant_variant_id));
+    return Math.round(
+      rarity.base * bg.mult * comboBoost * variantPriceMult(plant?.plant_variant_id) * spacePriceExtraMult(plant)
+    );
   }
 
   function getCollectionValue() {
@@ -511,15 +551,19 @@
     const price = getPlantPrice(plant);
     const rarity = plant.rarity || "common";
     const tile = plantBgAttrs(plant.background_id);
+    const spaceCls = isSpacePlant(plant) ? " seed-card--space" : "";
+    const tag = isSpacePlant(plant)
+      ? spaceTagHtml(rarity).replace("seed-card__tag", "harvest-modal__tag seed-card__tag")
+      : `<div class="harvest-modal__tag tag-${rarity}">${RARITY_LABEL[rarity] || rarity}</div>`;
     const overlay = document.createElement("div");
     overlay.className = "harvest-overlay";
     overlay.innerHTML = `
       <div class="harvest-modal" role="dialog" aria-modal="true">
         <div class="harvest-modal__title">🎉 Растение выросло!</div>
         <div class="harvest-modal__sub">Новый урожай в коллекции</div>
-        <div class="harvest-modal__plant seed-card--${rarity}${tile.classExtra}" style="${tile.style}">
+        <div class="harvest-modal__plant seed-card--${rarity}${spaceCls}${tile.classExtra}" style="${tile.style}">
           ${plantArtHtml(plant, "harvest-modal__plant-img")}
-          <div class="harvest-modal__tag tag-${rarity}">${RARITY_LABEL[rarity] || rarity}</div>
+          ${tag}
           <div class="harvest-modal__bg">${bg.name}</div>
           <div class="harvest-modal__price">≈ ${formatNum(price)} ${coinHtml(true)}</div>
         </div>
@@ -1181,10 +1225,11 @@
     return Math.max(0, ready - Math.floor(Date.now() / 1000));
   }
 
-  function bed(sprite, small) {
+  function bed(sprite, small, spacePlant = false) {
     const cls = small ? "bed__sprite bed__sprite--small" : "bed__sprite";
+    const spaceCls = spacePlant ? " bed--space" : "";
     return `
-      <div class="bed">
+      <div class="bed${spaceCls}">
         <span class="bed__sparkle">✨</span>
         <span class="bed__sparkle">⭐</span>
         <span class="bed__sparkle">✨</span>
@@ -1220,7 +1265,7 @@
       <div class="plot" data-plant-id="${plant.id}">
         <span class="plot-badge">Растёт!</span>
         <h2>Грядка №${slot}</h2>
-        ${bed("sprout", false)}
+        ${bed("sprout", false, Boolean(plant.planted_in_portal))}
         <div class="timer-box">
           <div class="timer-box__label">⏳ До цветения</div>
           <div class="timer plant-timer" data-plant-id="${plant.id}">${formatTime(left)}</div>
@@ -1235,12 +1280,16 @@
 
   function renderEmpty(slot) {
     const dur = formatGrowthDuration(state.config.growth_duration);
+    const inPortal = Boolean(state?.portal_dimension);
+    const growHint = inPortal
+      ? `Через ${dur} может вырасти инопланетное растение. Поливай сам — ускоришь рост!`
+      : `Через ${dur} вырастет растение случайной редкости. Поливай сам — ускоришь рост!`;
     return `
       <div class="plot">
         <span class="plot-badge">Свободно</span>
         <h2>Грядка №${slot}</h2>
-        <p class="plot-desc">Через ${dur} вырастет растение случайной редкости. Поливай сам — ускоришь рост!</p>
-        ${bed("seed", true)}
+        <p class="plot-desc">${growHint}</p>
+        ${bed("seed", true, inPortal)}
         <button class="btn btn-plant plant-btn" data-slot="${slot}">
           <span>🌱 Посадить</span>
         </button>
@@ -1249,7 +1298,7 @@
 
   function renderReady(plants) {
     if (!plants.length) {
-      return `<div class="empty-hint"><span class="empty-hint__seed"></span>Пока пусто — посади первое семечко на грядке!</div>`;
+      return `<div class="empty-hint${state?.portal_dimension ? " empty-hint--space" : ""}"><span class="empty-hint__seed"></span>Пока пусто — посади первое семечко на грядке!</div>`;
     }
     const items = plants
       .map(
@@ -1257,10 +1306,14 @@
       const bg = BACKGROUND_MARKET[p.background_id] || BACKGROUND_MARKET[1];
       const price = getPlantPrice(p);
       const tile = plantBgAttrs(p.background_id);
+      const spaceCls = isSpacePlant(p) ? " seed-card--space" : "";
+      const tag = isSpacePlant(p)
+        ? spaceTagHtml(p.rarity)
+        : `<div class="seed-card__tag tag-${p.rarity}">${RARITY_LABEL[p.rarity] || p.rarity}</div>`;
       return `
-      <div class="seed-card seed-card--${p.rarity}${tile.classExtra}" style="animation-delay:${i * 0.05}s;${tile.style}">
+      <div class="seed-card seed-card--${p.rarity}${spaceCls}${tile.classExtra}" style="animation-delay:${i * 0.05}s;${tile.style}">
         ${plantArtHtml(p)}
-        <div class="seed-card__tag tag-${p.rarity}">${RARITY_LABEL[p.rarity] || p.rarity}</div>
+        ${tag}
         <div class="seed-card__bg">${bg.name}</div>
         <div class="seed-card__bg">≈ ${formatNum(price)} ${coinHtml(true)}</div>
       </div>`;
@@ -1280,7 +1333,7 @@
         <span class="plot-badge" style="background:var(--blue)">Сад друга</span>
         <h2>${name}</h2>
         <p class="plot-desc">Полей — ускоришь рост сада друга!</p>
-        ${bed("leaf", false)}
+        ${bed("leaf", false, Boolean(plant.planted_in_portal))}
         <div class="timer-box">
           <div class="timer-box__label">Осталось</div>
           <div class="timer" id="friend-timer">${formatTime(left)}</div>
@@ -1314,12 +1367,13 @@
         a.ready_at < b.ready_at ? a : b
       );
       const left = remaining(soonest.ready_at);
+      const spaceCard = Boolean(soonest.planted_in_portal);
       const title =
         growing.length === 1
           ? "Растёт на грядке"
           : `Растёт на ${growing.length} грядках`;
       return `
-        <div class="status-card" id="go-plot">
+        <div class="status-card${spaceCard ? " status-card--space" : ""}" id="go-plot">
           <div class="status-card__sprite status-card__sprite--sprout"></div>
           <div class="status-card__info">
             <div class="status-card__title">${title}</div>
@@ -1329,7 +1383,7 @@
         </div>`;
     }
     return `
-      <div class="status-card" id="go-plot">
+      <div class="status-card${state?.portal_dimension ? " status-card--space" : ""}" id="go-plot">
         <div class="status-card__sprite status-card__sprite--seed"></div>
         <div class="status-card__info">
           <div class="status-card__title">Грядка свободна</div>
@@ -1876,6 +1930,27 @@
     }
   }
 
+  function fitPlaneAdText(textEl, maxWidth = 164) {
+    if (!textEl || typeof textEl.getComputedTextLength !== "function") return;
+    let size = 10;
+    textEl.setAttribute("font-size", String(size));
+    while (textEl.getComputedTextLength() > maxWidth && size > 7.5) {
+      size -= 0.5;
+      textEl.setAttribute("font-size", String(size));
+    }
+  }
+
+  function setAdBannerText(vehicle, message) {
+    const planeText = vehicle.querySelector(".ad-plane__text");
+    const ufoText = vehicle.querySelector(".ad-ufo__text");
+    if (planeText) {
+      planeText.textContent = message;
+      planeText.removeAttribute("font-size");
+      fitPlaneAdText(planeText);
+    }
+    if (ufoText) ufoText.textContent = message;
+  }
+
   function startAdPlane() {
     const plane = document.getElementById("ad-plane");
     const ufo = document.getElementById("ad-ufo");
@@ -1899,8 +1974,7 @@
       if (!vehicle || flying) return;
       flying = true;
 
-      const text = vehicle.querySelector(".ad-plane__text, .ad-ufo__text");
-      if (text) text.textContent = messages[Math.floor(Math.random() * messages.length)];
+      const message = messages[Math.floor(Math.random() * messages.length)];
 
       if (plane) {
         plane.hidden = true;
@@ -1915,6 +1989,7 @@
       vehicle.hidden = false;
       vehicle.classList.remove("ad-ufo--fly", "ad-plane--fly");
       void vehicle.offsetWidth;
+      setAdBannerText(vehicle, message);
       vehicle.classList.add(flyClass);
 
       vehicle.addEventListener(

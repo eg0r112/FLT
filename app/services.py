@@ -9,10 +9,11 @@ from typing import Any
 
 from app.config import get_settings
 from app.database import get_db
-from app.market import plant_market_price
+from app.market import COSMIC_BACKGROUND_ID, plant_market_price
 from app.plants import (
     ALL_VARIANT_IDS,
     rarity_for_variant,
+    roll_space_variant_for_rarity,
     roll_variant_for_rarity,
 )
 
@@ -61,7 +62,9 @@ def roll_rarity() -> str:
     return random.choices(names, weights=weights, k=1)[0]
 
 
-def roll_background() -> int:
+def roll_background(*, in_portal: bool = False) -> int:
+    if in_portal and random.random() < 0.05:
+        return COSMIC_BACKGROUND_ID
     return random.randint(1, get_settings().background_count)
 
 
@@ -343,7 +346,7 @@ async def get_growing_plants(user_id: int) -> list[dict]:
     db = await get_db()
     cur = await db.execute(
         "SELECT id, user_id, status, rarity, background_id, plant_variant_id, "
-        "planted_at, ready_at, plot_slot "
+        "planted_in_portal, planted_at, ready_at, plot_slot "
         "FROM plants WHERE user_id = ? AND status = 'growing' ORDER BY plot_slot",
         (user_id,),
     )
@@ -360,7 +363,7 @@ async def get_growing_plant_by_id(user_id: int, plant_id: int) -> dict | None:
     db = await get_db()
     cur = await db.execute(
         "SELECT id, user_id, status, rarity, background_id, plant_variant_id, "
-        "planted_at, ready_at, plot_slot "
+        "planted_in_portal, planted_at, ready_at, plot_slot "
         "FROM plants WHERE user_id = ? AND id = ? AND status = 'growing'",
         (user_id, plant_id),
     )
@@ -372,7 +375,7 @@ async def get_ready_plants(user_id: int) -> list[dict]:
     db = await get_db()
     cur = await db.execute(
         "SELECT id, user_id, status, rarity, background_id, plant_variant_id, "
-        "planted_at, ready_at, plot_slot "
+        "planted_in_portal, planted_at, ready_at, plot_slot "
         "FROM plants WHERE user_id = ? AND status = 'ready' ORDER BY ready_at DESC",
         (user_id,),
     )
@@ -400,10 +403,11 @@ async def plant_seed(user_id: int, plot_slot: int = 1) -> dict | None:
     now = NOW()
     ready_at = now + growth_duration_for_user(settings, user)
 
+    planted_in_portal = int(user.get("portal_dimension") or 0)
     cur = await db.execute(
-        "INSERT INTO plants (user_id, status, planted_at, ready_at, plot_slot) "
-        "VALUES (?, 'growing', ?, ?, ?)",
-        (user_id, now, ready_at, plot_slot),
+        "INSERT INTO plants (user_id, status, planted_at, ready_at, plot_slot, "
+        "planted_in_portal) VALUES (?, 'growing', ?, ?, ?, ?)",
+        (user_id, now, ready_at, plot_slot, planted_in_portal),
     )
     await db.commit()
     return {
@@ -413,6 +417,7 @@ async def plant_seed(user_id: int, plot_slot: int = 1) -> dict | None:
         "rarity": None,
         "background_id": None,
         "plant_variant_id": None,
+        "planted_in_portal": planted_in_portal,
         "planted_at": now,
         "ready_at": ready_at,
         "plot_slot": plot_slot,
@@ -425,7 +430,7 @@ async def finalize_ready_plants(user_id: int) -> list[dict]:
     now = NOW()
     cur = await db.execute(
         "SELECT id, user_id, status, rarity, background_id, plant_variant_id, "
-        "planted_at, ready_at, plot_slot "
+        "planted_in_portal, planted_at, ready_at, plot_slot "
         "FROM plants WHERE user_id = ? AND status = 'growing' AND ready_at <= ?",
         (user_id, now),
     )
@@ -435,8 +440,13 @@ async def finalize_ready_plants(user_id: int) -> list[dict]:
 
     for plant in plants:
         rarity = roll_rarity()
-        variant_id = roll_variant_for_rarity(rarity)
-        bg = roll_background()
+        in_portal = bool(int(plant.get("planted_in_portal") or 0))
+        if in_portal:
+            variant_id = roll_space_variant_for_rarity(rarity)
+            bg = roll_background(in_portal=True)
+        else:
+            variant_id = roll_variant_for_rarity(rarity)
+            bg = roll_background(in_portal=False)
         await db.execute(
             "UPDATE plants SET status = 'ready', rarity = ?, background_id = ?, "
             "plant_variant_id = ? WHERE id = ?",

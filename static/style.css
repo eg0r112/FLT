@@ -416,14 +416,14 @@ body {
 
 .ad-plane__text {
   font-family: "Baloo 2", cursive, sans-serif;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 700;
   fill: #495057;
-  letter-spacing: 0.2px;
+  letter-spacing: 0.1px;
 }
 
 .ad-plane__banner-wrap {
-  transform-origin: 120px 40px;
+  transform-origin: 118px 40px;
   animation: banner-sway 3.5s ease-in-out infinite;
 }
 
@@ -456,7 +456,8 @@ body {
   position: absolute;
   top: 9%;
   left: 0;
-  width: min(300px, 88vw);
+  width: max-content;
+  max-width: min(300px, 88vw);
   opacity: 0;
   pointer-events: none;
   z-index: 0;
@@ -488,12 +489,11 @@ body {
 }
 
 .ad-ufo__banner-wrap {
-  flex: 1;
-  min-width: 0;
+  flex: 0 1 auto;
   background: #fff;
   border: 1px solid #dee2e6;
   border-radius: 3px;
-  padding: 5px 8px;
+  padding: 5px 10px;
   transform-origin: left center;
   animation: banner-sway 3.5s ease-in-out infinite;
 }
@@ -501,13 +501,11 @@ body {
 .ad-ufo__text {
   display: block;
   font-family: "Baloo 2", cursive, sans-serif;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 700;
   color: #495057;
-  letter-spacing: 0.2px;
+  letter-spacing: 0.1px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .ad-ufo--fly {
@@ -1112,6 +1110,42 @@ body:not(.world-portal) .ad-ufo {
 .seed-card--rare { border-color: var(--rarity-rare); }
 .seed-card--epic { border-color: var(--rarity-epic); }
 .seed-card--legendary { border-color: var(--rarity-legendary); }
+
+.seed-card--space {
+  box-shadow:
+    0 0 0 2px rgba(57, 255, 20, 0.55),
+    0 0 18px rgba(57, 255, 20, 0.32),
+    0 8px 20px rgba(0, 0, 0, 0.1);
+  animation: space-card-glow 2.8s ease-in-out infinite;
+}
+
+@keyframes space-card-glow {
+  0%, 100% {
+    box-shadow:
+      0 0 0 2px rgba(57, 255, 20, 0.5),
+      0 0 14px rgba(57, 255, 20, 0.28),
+      0 8px 20px rgba(0, 0, 0, 0.1);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px rgba(57, 255, 20, 0.85),
+      0 0 24px rgba(57, 255, 20, 0.45),
+      0 8px 20px rgba(0, 0, 0, 0.1);
+  }
+}
+
+.seed-card__tag--space {
+  background: linear-gradient(135deg, #1b4332 0%, #39ff14 55%, #74c0fc 100%);
+  color: #0d0221;
+  box-shadow: 0 0 10px rgba(57, 255, 20, 0.5);
+  border: 1px solid rgba(57, 255, 20, 0.75);
+  letter-spacing: 0.02em;
+}
+
+.harvest-modal__plant.seed-card--space {
+  border-radius: var(--radius-sm);
+  padding: 10px 8px 6px;
+}
 
 .seed-card--bgimg {
   background-image: var(--bg-image);
