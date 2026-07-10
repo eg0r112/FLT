@@ -108,6 +108,7 @@ body {
   right: 0;
   bottom: 0;
   z-index: 0;
+  overflow: hidden;
 }
 
 .meadow__horizon {
@@ -142,6 +143,13 @@ body {
 }
 
 .meadow-eggs {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.sky-eggs {
   position: fixed;
   inset: 0;
   z-index: 50;
@@ -149,7 +157,6 @@ body {
 }
 
 .meadow-egg {
-  position: fixed;
   width: 48px;
   height: 48px;
   padding: 0;
@@ -158,10 +165,25 @@ body {
   cursor: pointer;
   transform: translate(-50%, -50%);
   filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.22));
-  transition: transform 0.15s ease;
+  transition: opacity 0.25s ease, visibility 0.25s ease, transform 0.15s ease;
   pointer-events: auto;
-  z-index: 50;
   touch-action: manipulation;
+}
+
+.meadow-egg--sky {
+  position: fixed;
+  z-index: 50;
+}
+
+.meadow-egg--grass {
+  position: absolute;
+  z-index: 1;
+}
+
+.meadow-egg--grass.is-hidden {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none !important;
 }
 
 .meadow-egg img {
@@ -437,11 +459,11 @@ body {
 #app .header,
 #app .tabbar,
 #app .plot,
-#app .stats,
+#app .stat,
 #app .profile-hero,
-#app .profile-grid,
 #app .profile-stat,
-#app .grid,
+#app .seed-card,
+#app .status-card,
 #app .section-title,
 #app .empty-hint,
 #app .shop-card,
@@ -1470,6 +1492,18 @@ body {
   font-family: var(--font-display);
   font-weight: 800;
   color: var(--orange-dark);
+}
+
+.profile-grid,
+.stats,
+.grid {
+  pointer-events: none;
+}
+
+.profile-stat,
+.stat,
+.seed-card {
+  pointer-events: auto;
 }
 
 .profile-grid {

@@ -209,6 +209,7 @@ async def index():
 async def api_me(
     tg_user: dict = Depends(get_tg_user),
     ref: int | None = Query(None),
+    fresh_egg: bool = Query(False),
 ):
     telegram_id = tg_user["id"]
     username = tg_user.get("username")
@@ -236,7 +237,7 @@ async def api_me(
     admin = is_admin(telegram_id, settings)
     ads_unread = await count_admin_unread() if admin else 0
     easter_egg = await get_active_easter_egg(
-        db_user["id"], telegram_id, is_admin=admin
+        db_user["id"], telegram_id, is_admin=admin, fresh_session=fresh_egg
     )
     easter_found_count = len(await get_found_egg_ids(db_user["id"]))
 

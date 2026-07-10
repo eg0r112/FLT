@@ -563,8 +563,84 @@
     return catalog.find((e) => e.id === id) || null;
   }
 
+  const HORIZON_Y = 38;
+  const MEADOW_BAND = 100 - HORIZON_Y;
+  let meadowScrollBound = false;
+
+  function viewportTopToMeadow(top) {
+    return ((top - HORIZON_Y) / MEADOW_BAND) * 100;
+  }
+
+  function meadowDepth(viewportTop) {
+    return Math.max(0, Math.min(1, (viewportTop - HORIZON_Y) / MEADOW_BAND));
+  }
+
+  function isGrassEgg(egg) {
+    if (!egg) return false;
+    if (egg.layer === "grass") return true;
+    if (egg.layer === "sky") return false;
+    const top = egg.top ?? 50;
+    if (top < HORIZON_Y + 3) return false;
+    if (egg.animation?.type === "path") {
+      const points = [{ top: egg.top ?? 50 }];
+      egg.animation.segments?.forEach((seg) => {
+        if (seg.to) points.push(seg.to);
+      });
+      const minTop = Math.min(...points.map((p) => p.top ?? 100));
+      if (minTop < HORIZON_Y + 3) return false;
+    }
+    return true;
+  }
+
+  function getGrassEggScrollThreshold(viewportTop) {
+    const depth = meadowDepth(viewportTop);
+    const maxScroll = Math.max(
+      1,
+      document.documentElement.scrollHeight - window.innerHeight,
+    );
+    const range = Math.max(window.innerHeight * 0.3, maxScroll * 0.85);
+    return Math.max(48, depth * range);
+  }
+
+  function updateGrassEggVisibility(target) {
+    const buttons = target
+      ? [target]
+      : [...document.querySelectorAll(".meadow-egg--grass")];
+    if (!buttons.length) return;
+    if (isEggEditMode()) {
+      buttons.forEach((btn) => btn.classList.remove("is-hidden"));
+      return;
+    }
+    const scrollY = window.scrollY;
+    buttons.forEach((btn) => {
+      const viewportTop = parseFloat(btn.dataset.viewportTop || "0");
+      const threshold = getGrassEggScrollThreshold(viewportTop);
+      btn.classList.toggle("is-hidden", scrollY + 4 < threshold);
+    });
+  }
+
+  function ensureMeadowScrollListener() {
+    if (meadowScrollBound) return;
+    meadowScrollBound = true;
+    const tick = () => updateGrassEggVisibility();
+    window.addEventListener("scroll", tick, { passive: true });
+    window.addEventListener("resize", tick, { passive: true });
+  }
+
+  function clearEggHosts() {
+    document.getElementById("meadow-eggs")?.replaceChildren();
+    document.getElementById("sky-eggs")?.replaceChildren();
+    document.getElementById("egg-edit-panel")?.remove();
+  }
+
   function setEggPosition(btn, left, top) {
     btn.style.left = `${left}%`;
+    btn.dataset.viewportTop = String(top);
+    if (btn.dataset.zone === "grass") {
+      btn.style.top = `${viewportTopToMeadow(top)}%`;
+      updateGrassEggVisibility(btn);
+      return;
+    }
     btn.style.top = `${top}%`;
   }
 
@@ -596,7 +672,7 @@
 
     const getPos = () => ({
       left: parseFloat(btn.style.left),
-      top: parseFloat(btn.style.top),
+      top: parseFloat(btn.dataset.viewportTop || btn.style.top),
     });
 
     const runLoop = async () => {
@@ -646,18 +722,22 @@
 
   function renderEasterEgg(egg, options = {}) {
     const { editable = false } = options;
-    const host = document.getElementById("meadow-eggs");
-    if (!host) return null;
-    host.innerHTML = "";
-    document.getElementById("egg-edit-panel")?.remove();
+    clearEggHosts();
     if (!egg) return null;
+
+    const grass = !editable && isGrassEgg(egg);
+    const host = document.getElementById(grass ? "meadow-eggs" : "sky-eggs");
+    if (!host) return null;
 
     const btn = document.createElement("button");
     btn.type = "button";
     let className = "meadow-egg";
+    if (grass) className += " meadow-egg--grass is-hidden";
+    else className += " meadow-egg--sky";
     if (editable) className += " meadow-egg--edit";
     if (egg.effect === "smoke") className += " meadow-egg--smoke";
     btn.className = className;
+    btn.dataset.zone = grass ? "grass" : "sky";
     btn.title = egg.name || "";
     setEggPosition(btn, egg.left, egg.top);
     const size = egg.size || 48;
@@ -682,6 +762,8 @@
     }
 
     host.appendChild(btn);
+    ensureMeadowScrollListener();
+    updateGrassEggVisibility(btn);
     return btn;
   }
 
@@ -709,7 +791,10 @@
 
     const readPos = () => ({
       left: Math.round(parseFloat(btn.style.left) * 10) / 10,
-      top: Math.round(parseFloat(btn.style.top) * 10) / 10,
+      top:
+        Math.round(
+          parseFloat(btn.dataset.viewportTop || btn.style.top) * 10,
+        ) / 10,
       size: parseInt(btn.style.width, 10) || 48,
     });
 
@@ -778,8 +863,7 @@
       if (!dragging) return;
       const left = Math.min(98, Math.max(2, (e.clientX / window.innerWidth) * 100));
       const top = Math.min(98, Math.max(2, (e.clientY / window.innerHeight) * 100));
-      btn.style.left = `${left}%`;
-      btn.style.top = `${top}%`;
+      setEggPosition(btn, left, top);
       refreshPanel();
     });
     const stopDrag = (e) => {
@@ -809,10 +893,12 @@
     if (!egg?.id) return;
     try {
       const res = await api("POST", `/api/easter-egg/claim?egg_id=${egg.id}`);
-      toast(`Найдено: ${res.egg.name} · ${res.found_total}/${res.total}`);
-      state.easter_egg = null;
       if (state.easter_found != null) state.easter_found = res.found_total;
-      renderEasterEgg(null);
+      if (res.already_found) {
+        toast(`Уже найдена: ${res.egg.name}`);
+      } else {
+        toast(`Найдено: ${res.egg.name} · ${res.found_total}/${res.total}`);
+      }
     } catch (_) {
       toast("Не удалось забрать пасхалку");
     }
@@ -1294,6 +1380,7 @@
     if (currentTab === "garden") {
       ensureLeaderboard().then(() => updateLeaderboardSection());
     }
+    updateGrassEggVisibility();
   }
 
   async function loadFriend(refCode) {
@@ -1580,9 +1667,12 @@
     initDevUser();
     try {
       const ref = parseRef();
-      const q = ref ? `?ref=${ref}` : "";
+      const meParams = new URLSearchParams();
+      if (ref) meParams.set("ref", String(ref));
+      meParams.set("fresh_egg", "1");
+      const meQuery = meParams.toString();
       const cachedStats = readGlobalStatsCache();
-      const mePromise = api("GET", "/api/me" + q);
+      const mePromise = api("GET", "/api/me" + (meQuery ? `?${meQuery}` : ""));
       const statsPromise = cachedStats
         ? Promise.resolve(cachedStats)
         : api("GET", "/api/global-stats").catch(() => null);

@@ -1,4 +1,4 @@
-"""Пасхалки: одна случайная за раз, находки в БД, админ-оверрайд по номеру."""
+"""Пасхалки: одна случайная за сессию, находки в БД, админ-оверрайд по номеру."""
 
 from __future__ import annotations
 
@@ -86,9 +86,8 @@ async def get_active_easter_egg(
     telegram_id: int,
     *,
     is_admin: bool = False,
+    fresh_session: bool = False,
 ) -> dict | None:
-    found = await get_found_egg_ids(user_id)
-
     if is_admin:
         override_id = await _pop_admin_override(telegram_id)
         if override_id is not None:
@@ -96,21 +95,20 @@ async def get_active_easter_egg(
             egg = get_egg(override_id)
             return dict(egg) if egg else None
 
+    if fresh_session:
+        picked = random.choice(list(ALL_EGG_IDS))
+        await _set_active(user_id, picked)
+        egg = get_egg(picked)
+        return dict(egg) if egg else None
+
     active_id = await _get_stored_active(user_id)
     if active_id is not None:
-        if active_id in found:
-            await _clear_active(user_id)
-        else:
-            egg = get_egg(active_id)
-            if egg:
-                return dict(egg)
-            await _clear_active(user_id)
+        egg = get_egg(active_id)
+        if egg:
+            return dict(egg)
+        await _clear_active(user_id)
 
-    pool = [eid for eid in ALL_EGG_IDS if eid not in found]
-    if not pool:
-        return None
-
-    picked = random.choice(pool)
+    picked = random.choice(list(ALL_EGG_IDS))
     await _set_active(user_id, picked)
     egg = get_egg(picked)
     return dict(egg) if egg else None
@@ -125,18 +123,27 @@ async def claim_easter_egg(user_id: int, egg_id: int) -> dict:
     if not egg:
         return {"ok": False, "error": "unknown_egg"}
 
-    db = await get_db()
-    now = NOW()
-    try:
-        await db.execute(
-            "INSERT INTO easter_egg_finds (user_id, egg_id, found_at) VALUES (?, ?, ?)",
-            (user_id, egg_id, now),
-        )
-        await db.commit()
-    except Exception:
-        return {"ok": False, "error": "already_found"}
+    found_before = await get_found_egg_ids(user_id)
+    already_found = int(egg_id) in found_before
 
-    await _clear_active(user_id)
+    if not already_found:
+        db = await get_db()
+        now = NOW()
+        try:
+            await db.execute(
+                "INSERT INTO easter_egg_finds (user_id, egg_id, found_at) VALUES (?, ?, ?)",
+                (user_id, egg_id, now),
+            )
+            await db.commit()
+        except Exception:
+            already_found = True
+
     found = await get_found_egg_ids(user_id)
-    return {"ok": True, "egg": egg, "found_total": len(found), "total": EGG_COUNT}
+    return {
+        "ok": True,
+        "egg": egg,
+        "found_total": len(found),
+        "total": EGG_COUNT,
+        "already_found": already_found,
+    }
 
