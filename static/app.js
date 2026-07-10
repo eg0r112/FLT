@@ -458,7 +458,10 @@
 
   function spaceTagHtml(rarity) {
     const label = RARITY_LABEL[rarity] || rarity;
-    return `<div class="seed-card__tag seed-card__tag--space tag-${rarity}">${label} · 35-С</div>`;
+    return `<div class="seed-card__tag seed-card__tag--space tag-${rarity}">
+      <span class="seed-card__tag-rarity">${label}</span>
+      <span class="seed-card__tag-dim">35-C</span>
+    </div>`;
   }
 
   function plantArtHtml(plant, className = "seed-card__plant") {
