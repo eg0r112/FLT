@@ -813,6 +813,7 @@
     else className += " meadow-egg--sky";
     if (editable) className += " meadow-egg--edit";
     if (egg.effect === "smoke") className += " meadow-egg--smoke";
+    if (egg.id === PORTAL_EGG_ID || egg.action === "portal") className += " meadow-egg--portal";
     btn.className = className;
     btn.dataset.zone = grass ? "grass" : "sky";
     if (egg.anchor) btn.dataset.anchor = egg.anchor;
@@ -990,6 +991,13 @@
         return;
       }
     }
+    if (state?.portal_dimension) {
+      const portal = await fetchEggFromCatalog(PORTAL_EGG_ID);
+      if (portal) {
+        renderEasterEgg(portal);
+        return;
+      }
+    }
     renderEasterEgg(state?.easter_egg);
   }
 
@@ -1013,33 +1021,7 @@
     const logo = document.querySelector(".logo-emoji");
     if (logo) logo.textContent = on ? "🌀" : "🌻";
     const title = document.querySelector(".logo h1");
-    if (title) title.textContent = on ? "Другое измерение" : "Мой Садик";
-  }
-
-  function renderPortalToggle() {
-    document.getElementById("portal-toggle")?.remove();
-    if (!state?.portal_dimension) return;
-    if (state.easter_egg?.id === PORTAL_EGG_ID) return;
-
-    const host = document.getElementById("sky-eggs");
-    if (!host) return;
-
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.id = "portal-toggle";
-    btn.className = "meadow-egg meadow-egg--sky portal-toggle";
-    btn.title = "Портал — вернуться домой";
-    btn.style.width = "64px";
-    btn.style.height = "64px";
-    btn.style.left = "53.9%";
-    btn.style.top = "42%";
-    btn.innerHTML = `<img src="/static/images/easter/27.png" alt="">`;
-    btn.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      handlePortalEggClick({ id: PORTAL_EGG_ID, name: "портал", action: "portal" });
-    });
-    host.appendChild(btn);
+    if (title) title.textContent = on ? "Измерение 35-С" : "Мой Садик";
   }
 
   async function handlePortalEggClick(egg) {
@@ -1056,11 +1038,11 @@
       const toggle = await api("POST", "/api/portal/toggle");
       state.portal_dimension = Boolean(toggle.portal_dimension);
       applyPortalDimension(state.portal_dimension);
-      renderPortalToggle();
+      await resolveEasterEggDisplay();
       playPortalFlash();
       toast(
         state.portal_dimension
-          ? "🌀 Другое измерение..."
+          ? "🌀 Измерение 35-С..."
           : "🌍 С возвращением домой!",
       );
     } catch (_) {
@@ -1795,7 +1777,7 @@
       updateHeader();
       render();
       applyPortalDimension(state.portal_dimension);
-      renderPortalToggle();
+      await resolveEasterEggDisplay();
 
       if (fromMaturity && prevGrowingIds) {
         const newPlants = state.ready_plants.filter((p) => !prevReadyIds.has(p.id));
@@ -1881,7 +1863,6 @@
       else render();
       applyPortalDimension(state.portal_dimension);
       await resolveEasterEggDisplay();
-      renderPortalToggle();
       ensureTickLoop();
       startAdPlane();
     } catch (e) {
@@ -1897,7 +1878,8 @@
 
   function startAdPlane() {
     const plane = document.getElementById("ad-plane");
-    if (!plane) return;
+    const ufo = document.getElementById("ad-ufo");
+    if (!plane && !ufo) return;
 
     const messages = [
       "Здесь могла бы быть ваша реклама",
@@ -1908,23 +1890,38 @@
 
     let flying = false;
 
+    function pickVehicle() {
+      return document.body.classList.contains("world-portal") ? ufo : plane;
+    }
+
     function fly() {
-      if (flying) return;
+      const vehicle = pickVehicle();
+      if (!vehicle || flying) return;
       flying = true;
 
-      const text = plane.querySelector(".ad-plane__text");
+      const text = vehicle.querySelector(".ad-plane__text, .ad-ufo__text");
       if (text) text.textContent = messages[Math.floor(Math.random() * messages.length)];
 
-      plane.hidden = false;
-      plane.classList.remove("ad-plane--fly");
-      void plane.offsetWidth;
-      plane.classList.add("ad-plane--fly");
+      if (plane) {
+        plane.hidden = true;
+        plane.classList.remove("ad-plane--fly");
+      }
+      if (ufo) {
+        ufo.hidden = true;
+        ufo.classList.remove("ad-ufo--fly");
+      }
 
-      plane.addEventListener(
+      const flyClass = vehicle.id === "ad-ufo" ? "ad-ufo--fly" : "ad-plane--fly";
+      vehicle.hidden = false;
+      vehicle.classList.remove("ad-ufo--fly", "ad-plane--fly");
+      void vehicle.offsetWidth;
+      vehicle.classList.add(flyClass);
+
+      vehicle.addEventListener(
         "animationend",
         () => {
-          plane.classList.remove("ad-plane--fly");
-          plane.hidden = true;
+          vehicle.classList.remove("ad-ufo--fly", "ad-plane--fly");
+          vehicle.hidden = true;
           flying = false;
           schedule();
         },

@@ -451,6 +451,78 @@ body {
   to { transform: translateX(calc(-100% - 40px)); }
 }
 
+/* ── Ad UFO (portal dimension) ── */
+.ad-ufo {
+  position: absolute;
+  top: 9%;
+  left: 0;
+  width: min(300px, 88vw);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 0;
+  filter: drop-shadow(0 0 14px rgba(57, 255, 20, 0.45));
+}
+
+.ad-ufo__scene {
+  display: flex;
+  align-items: center;
+}
+
+.ad-ufo__ship {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+  animation: ufo-hover 2.5s ease-in-out infinite;
+}
+
+@keyframes ufo-hover {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.ad-ufo__ropes {
+  flex-shrink: 0;
+  width: 16px;
+  height: 14px;
+}
+
+.ad-ufo__banner-wrap {
+  flex: 1;
+  min-width: 0;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 3px;
+  padding: 5px 8px;
+  transform-origin: left center;
+  animation: banner-sway 3.5s ease-in-out infinite;
+}
+
+.ad-ufo__text {
+  display: block;
+  font-family: "Baloo 2", cursive, sans-serif;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #495057;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ad-ufo--fly {
+  animation: plane-fly 20s linear forwards;
+  opacity: 1;
+}
+
+body.world-portal .ad-plane {
+  display: none !important;
+}
+
+body:not(.world-portal) .ad-ufo {
+  display: none !important;
+}
+
 /* ── App shell ── */
 #app {
   position: relative;
