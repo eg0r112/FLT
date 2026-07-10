@@ -1108,6 +1108,7 @@
         if (!res.already_found) {
           toast(`Найдено: ${res.egg.name} · ${res.found_total}/${res.total}`);
         }
+        applyAchievementUnlock(res, 3200);
       } catch (_) {
         /* портал выхода — находка уже была */
       }
@@ -1140,10 +1141,52 @@
         toast(`Уже найдена: ${res.egg.name}`);
       } else {
         toast(`Найдено: ${res.egg.name} · ${res.found_total}/${res.total}`);
+        applyAchievementUnlock(res, 2800);
       }
     } catch (_) {
       toast("Не удалось забрать пасхалку");
     }
+  }
+
+  function applyAchievementUnlock(res, toastDelay = 0) {
+    const ach = res?.achievement_unlocked;
+    if (!ach) return;
+    if (!state.achievements) state.achievements = [];
+    const idx = state.achievements.findIndex((a) => a.id === ach.id);
+    const entry = { ...ach, unlocked: true };
+    if (idx >= 0) state.achievements[idx] = { ...state.achievements[idx], ...entry };
+    else state.achievements.push(entry);
+    const show = () => toast(`${ach.emoji || "🏆"} Ачивка: ${ach.title}`);
+    if (toastDelay > 0) setTimeout(show, toastDelay);
+    else show();
+    if (currentTab === "profile") render();
+  }
+
+  function renderAchievementsHtml() {
+    const list = state.achievements || [];
+    if (!list.length) return "";
+    const rows = list
+      .map((a) => {
+        const locked = !a.unlocked;
+        const progress =
+          a.id === "easter_all" && locked
+            ? ` · ${state.easter_found || 0}/${state.easter_total || 37}`
+            : "";
+        return `
+        <div class="achievement${locked ? " achievement--locked" : " achievement--unlocked"}">
+          <div class="achievement__icon">${locked ? "🔒" : a.emoji || "🏆"}</div>
+          <div class="achievement__body">
+            <div class="achievement__title">${a.title}</div>
+            <div class="achievement__desc">${a.desc || ""}${progress}</div>
+          </div>
+        </div>`;
+      })
+      .join("");
+    return `
+      <div class="achievements">
+        <div class="section-title">🏆 Ачивки</div>
+        <div class="achievements__list">${rows}</div>
+      </div>`;
   }
 
   function toast(msg) {
@@ -1546,6 +1589,7 @@
           <div class="profile-stat-lbl">Цена коллекции</div>
         </div>
       </div>
+      ${renderAchievementsHtml()}
       <button class="btn btn-share" id="copy-ref" style="width:100%">
         <span>📋 Скопировать реф. ссылку</span>
       </button>

@@ -24,6 +24,7 @@ from app.ads import (
     send_message,
     set_blocked,
 )
+from app.achievements import get_user_achievements, sync_easter_all_achievement
 from app.easter import claim_easter_egg, get_active_easter_egg, get_found_egg_ids
 from app.services import (
     build_display_name,
@@ -245,6 +246,8 @@ async def api_me(
         db_user["id"], telegram_id, is_admin=admin, fresh_session=fresh_egg
     )
     easter_found_count = len(await get_found_egg_ids(db_user["id"]))
+    await sync_easter_all_achievement(db_user["id"])
+    achievements = await get_user_achievements(db_user["id"])
 
     return {
         "user": {
@@ -279,6 +282,7 @@ async def api_me(
         "easter_egg": easter_egg,
         "easter_found": easter_found_count,
         "easter_total": 37,
+        "achievements": achievements,
         "portal_dimension": bool(int(db_user.get("portal_dimension") or 0)),
     }
 

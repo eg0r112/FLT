@@ -1652,6 +1652,57 @@ body:not(.world-portal) .ad-ufo {
   margin-top: 2px;
 }
 
+.achievements {
+  margin-bottom: 14px;
+}
+
+.achievements__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.achievement {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+  border: 2px solid #e8f5e9;
+}
+
+.achievement--locked {
+  opacity: 0.72;
+  border-color: #eceff1;
+}
+
+.achievement--unlocked {
+  border-color: #ffe082;
+  background: linear-gradient(135deg, #fffef8, #fff8e1);
+}
+
+.achievement__icon {
+  font-size: 1.6rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.achievement__title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.95rem;
+  margin-bottom: 2px;
+}
+
+.achievement__desc {
+  font-size: 0.78rem;
+  color: var(--text-light);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
 /* ── Leaderboard ── */
 .leaderboard {
   background: var(--white);

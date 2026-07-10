@@ -1,2 +1,2 @@
 # Меняй при деплое UI — Telegram кэширует /static/app.js
-BUILD = "20260710-revert-loader"
+BUILD = "20260710-easter-achievement"

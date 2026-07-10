@@ -157,6 +157,14 @@ CREATE TABLE IF NOT EXISTS easter_egg_active (
     egg_id INTEGER NOT NULL,
     assigned_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS user_achievements (
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    achievement_id TEXT NOT NULL,
+    unlocked_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, achievement_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_achievements_user ON user_achievements(user_id);
 """
 
 _EXTRA_TABLES_PG = """
@@ -193,6 +201,14 @@ CREATE TABLE IF NOT EXISTS easter_egg_active (
     egg_id INTEGER NOT NULL,
     assigned_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS user_achievements (
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    achievement_id TEXT NOT NULL,
+    unlocked_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, achievement_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_achievements_user ON user_achievements(user_id);
 """
 
 

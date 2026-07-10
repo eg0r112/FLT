@@ -139,11 +139,17 @@ async def claim_easter_egg(user_id: int, egg_id: int) -> dict:
             already_found = True
 
     found = await get_found_egg_ids(user_id)
+    achievement_unlocked = None
+    if len(found) >= EGG_COUNT:
+        from app.achievements import sync_easter_all_achievement
+
+        achievement_unlocked = await sync_easter_all_achievement(user_id)
     return {
         "ok": True,
         "egg": egg,
         "found_total": len(found),
         "total": EGG_COUNT,
         "already_found": already_found,
+        "achievement_unlocked": achievement_unlocked,
     }
 
