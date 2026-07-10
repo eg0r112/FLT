@@ -571,10 +571,6 @@
     return ((top - HORIZON_Y) / MEADOW_BAND) * 100;
   }
 
-  function meadowDepth(viewportTop) {
-    return Math.max(0, Math.min(1, (viewportTop - HORIZON_Y) / MEADOW_BAND));
-  }
-
   function isGrassEgg(egg) {
     if (!egg) return false;
     if (egg.layer === "grass") return true;
@@ -592,14 +588,27 @@
     return true;
   }
 
-  function getGrassEggScrollThreshold(viewportTop) {
-    const depth = meadowDepth(viewportTop);
-    const maxScroll = Math.max(
-      1,
-      document.documentElement.scrollHeight - window.innerHeight,
-    );
-    const range = Math.max(window.innerHeight * 0.3, maxScroll * 0.85);
-    return Math.max(48, depth * range);
+  function isGrassEggVisibleOnProfile(btn) {
+    if (isEggEditMode()) return true;
+    if (currentTab !== "profile") return false;
+
+    const grid = document.querySelector(".profile-grid");
+    if (!grid) return false;
+
+    const viewportTop = parseFloat(btn.dataset.viewportTop || "0");
+    const eggY = (viewportTop / 100) * window.innerHeight;
+    const meadowTop = (HORIZON_Y / 100) * window.innerHeight;
+    const meadowBottom = window.innerHeight;
+
+    if (eggY < meadowTop || eggY > meadowBottom) return false;
+
+    const gridRect = grid.getBoundingClientRect();
+    const pad = 16;
+
+    if (gridRect.bottom < meadowTop || gridRect.top > meadowBottom) return false;
+    if (eggY < gridRect.top - pad || eggY > gridRect.bottom + pad) return false;
+
+    return true;
   }
 
   function updateGrassEggVisibility(target) {
@@ -607,15 +616,8 @@
       ? [target]
       : [...document.querySelectorAll(".meadow-egg--grass")];
     if (!buttons.length) return;
-    if (isEggEditMode()) {
-      buttons.forEach((btn) => btn.classList.remove("is-hidden"));
-      return;
-    }
-    const scrollY = window.scrollY;
     buttons.forEach((btn) => {
-      const viewportTop = parseFloat(btn.dataset.viewportTop || "0");
-      const threshold = getGrassEggScrollThreshold(viewportTop);
-      btn.classList.toggle("is-hidden", scrollY + 4 < threshold);
+      btn.classList.toggle("is-hidden", !isGrassEggVisibleOnProfile(btn));
     });
   }
 
