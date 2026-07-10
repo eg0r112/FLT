@@ -648,11 +648,10 @@
   }
 
   function clampSkyEggTop(top, size, anchor) {
-    const margin = anchor === "top" ? 4 : 10;
     if (anchor === "top") {
-      const minTop = (margin / window.innerHeight) * 100;
-      return Math.min(98, Math.max(minTop, top));
+      return Math.min(98, Math.max(-4, top));
     }
+    const margin = 10;
     const halfPx = (size || 48) / 2;
     const minTop = ((halfPx + margin) / window.innerHeight) * 100;
     return Math.min(98, Math.max(minTop, top));
@@ -791,7 +790,10 @@
       if (motion) {
         btn.addEventListener("click", motion.onClick);
       } else {
-        btn.addEventListener("click", () => claimEasterEgg(egg));
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          claimEasterEgg(egg);
+        });
       }
     }
 

@@ -196,6 +196,11 @@ body {
   object-fit: contain;
   display: block;
   pointer-events: none;
+  transition: transform 0.12s ease;
+}
+
+.meadow-egg:active img {
+  transform: scale(0.94);
 }
 
 .meadow-egg--edit {
@@ -303,10 +308,6 @@ body {
 
 .egg-edit-panel__copy:active {
   transform: scale(0.98);
-}
-
-.meadow-egg:active {
-  transform: translate(-50%, -50%) scale(0.92);
 }
 
 .meadow-egg--smoke {
