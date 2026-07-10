@@ -627,8 +627,17 @@
   function ensureMeadowScrollListener() {
     if (meadowScrollBound) return;
     meadowScrollBound = true;
-    const tick = () => updateGrassEggVisibility();
-    window.addEventListener("scroll", tick, { passive: true });
+    const tick = () => {
+      updateGrassEggVisibility();
+      document.querySelectorAll(".meadow-egg--sky").forEach((btn) => {
+        const left = parseFloat(btn.style.left);
+        const catalogTop = parseFloat(btn.dataset.catalogTop || btn.dataset.viewportTop);
+        if (!Number.isNaN(left) && !Number.isNaN(catalogTop)) {
+          setEggPosition(btn, left, catalogTop);
+        }
+      });
+    };
+    window.addEventListener("scroll", () => updateGrassEggVisibility(), { passive: true });
     window.addEventListener("resize", tick, { passive: true });
   }
 
@@ -638,15 +647,25 @@
     document.getElementById("egg-edit-panel")?.remove();
   }
 
+  function clampSkyEggTop(top, size) {
+    const halfPx = (size || 48) / 2;
+    const margin = 10;
+    const minTop = ((halfPx + margin) / window.innerHeight) * 100;
+    return Math.min(98, Math.max(minTop, top));
+  }
+
   function setEggPosition(btn, left, top) {
     btn.style.left = `${left}%`;
-    btn.dataset.viewportTop = String(top);
+    const size = parseInt(btn.style.width, 10) || 48;
+    const viewportTop =
+      btn.dataset.zone === "sky" ? clampSkyEggTop(top, size) : top;
+    btn.dataset.viewportTop = String(viewportTop);
     if (btn.dataset.zone === "grass") {
-      btn.style.top = `${viewportTopToMeadow(top)}%`;
+      btn.style.top = `${viewportTopToMeadow(viewportTop)}%`;
       updateGrassEggVisibility(btn);
       return;
     }
-    btn.style.top = `${top}%`;
+    btn.style.top = `${viewportTop}%`;
   }
 
   function animateEggSegment(btn, from, to, durationMs, token) {
@@ -744,10 +763,11 @@
     btn.className = className;
     btn.dataset.zone = grass ? "grass" : "sky";
     btn.title = egg.name || "";
-    setEggPosition(btn, egg.left, egg.top);
     const size = egg.size || 48;
     btn.style.width = `${size}px`;
     btn.style.height = `${size}px`;
+    btn.dataset.catalogTop = String(egg.top);
+    setEggPosition(btn, egg.left, egg.top);
 
     if (egg.effect === "smoke") {
       btn.innerHTML = `<span class="meadow-egg__smoke" aria-hidden="true"></span><img src="${egg.image}" alt="">`;

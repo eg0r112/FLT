@@ -456,8 +456,9 @@ body {
   pointer-events: none;
 }
 
-#app .header,
 #app .tabbar,
+#app .tabbar__btn,
+#app .coin-pill,
 #app .plot,
 #app .stat,
 #app .profile-hero,
@@ -490,9 +491,10 @@ body {
   justify-content: space-between;
   margin-bottom: 18px;
   animation: pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  pointer-events: none;
 }
 
-.logo { display: flex; align-items: center; gap: 10px; }
+.logo { display: flex; align-items: center; gap: 10px; pointer-events: none; }
 
 .logo-emoji {
   font-size: 2.2rem;
@@ -535,6 +537,7 @@ body {
   border-radius: 99px;
   box-shadow: var(--shadow);
   border: 2px solid var(--yellow);
+  pointer-events: auto;
 }
 
 .coin {
@@ -1239,6 +1242,7 @@ body {
   font-weight: 800;
   margin-bottom: 14px;
   animation: pop-in 0.4s ease both;
+  pointer-events: none;
 }
 
 .page-card {
