@@ -40,6 +40,7 @@ from app.services import (
     get_ready_plants,
     get_self_water_status,
     get_user_by_telegram,
+    toggle_portal_dimension,
     get_user_stats,
     plant_seed,
     validate_init_data,
@@ -199,6 +200,10 @@ async def index():
         f'href="/static/style.css?v={BUILD}"',
     )
     html = html.replace(
+        'href="/static/portal-theme.css"',
+        f'href="/static/portal-theme.css?v={BUILD}"',
+    )
+    html = html.replace(
         'src="/static/app.js"',
         f'src="/static/app.js?v={BUILD}"',
     )
@@ -274,6 +279,7 @@ async def api_me(
         "easter_egg": easter_egg,
         "easter_found": easter_found_count,
         "easter_total": 37,
+        "portal_dimension": bool(int(db_user.get("portal_dimension") or 0)),
     }
 
 
@@ -448,6 +454,15 @@ async def api_easter_egg_claim(
     if not result["ok"]:
         raise HTTPException(400, detail=result)
     return result
+
+
+@app.post("/api/portal/toggle")
+async def api_portal_toggle(tg_user: dict = Depends(get_tg_user)):
+    user = await get_user_by_telegram(tg_user["id"])
+    if not user:
+        raise HTTPException(404, "User not found")
+    active = await toggle_portal_dimension(user["id"])
+    return {"ok": True, "portal_dimension": active}
 
 
 @app.get("/health")

@@ -26,6 +26,7 @@
   let adsBlocked = false;
 
   const TABS = ["garden", "plot", "friends", "shop", "profile"];
+  const PORTAL_EGG_ID = 27;
 
   const UPGRADE_META = {
     plot: {
@@ -837,6 +838,12 @@
       const motion = startEggPathAnimation(btn, egg);
       if (motion) {
         btn.addEventListener("click", motion.onClick);
+      } else if (egg.id === PORTAL_EGG_ID || egg.action === "portal") {
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          handlePortalEggClick(egg);
+        });
       } else {
         btn.addEventListener("click", (e) => {
           e.preventDefault();
@@ -986,7 +993,86 @@
     renderEasterEgg(state?.easter_egg);
   }
 
+  function playPortalFlash() {
+    let el = document.getElementById("portal-flash");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "portal-flash";
+      el.className = "portal-flash";
+      document.body.appendChild(el);
+    }
+    el.classList.remove("active");
+    void el.offsetWidth;
+    el.classList.add("active");
+    setTimeout(() => el.classList.remove("active"), 450);
+  }
+
+  function applyPortalDimension(active = state?.portal_dimension) {
+    const on = Boolean(active);
+    document.body.classList.toggle("world-portal", on);
+    const logo = document.querySelector(".logo-emoji");
+    if (logo) logo.textContent = on ? "🌀" : "🌻";
+    const title = document.querySelector(".logo h1");
+    if (title) title.textContent = on ? "Другое измерение" : "Мой Садик";
+  }
+
+  function renderPortalToggle() {
+    document.getElementById("portal-toggle")?.remove();
+    if (!state?.portal_dimension) return;
+    if (state.easter_egg?.id === PORTAL_EGG_ID) return;
+
+    const host = document.getElementById("sky-eggs");
+    if (!host) return;
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.id = "portal-toggle";
+    btn.className = "meadow-egg meadow-egg--sky portal-toggle";
+    btn.title = "Портал — вернуться домой";
+    btn.style.width = "64px";
+    btn.style.height = "64px";
+    btn.style.left = "53.9%";
+    btn.style.top = "42%";
+    btn.innerHTML = `<img src="/static/images/easter/27.png" alt="">`;
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      handlePortalEggClick({ id: PORTAL_EGG_ID, name: "портал", action: "portal" });
+    });
+    host.appendChild(btn);
+  }
+
+  async function handlePortalEggClick(egg) {
+    try {
+      try {
+        const res = await api("POST", `/api/easter-egg/claim?egg_id=${egg.id}`);
+        if (state.easter_found != null) state.easter_found = res.found_total;
+        if (!res.already_found) {
+          toast(`Найдено: ${res.egg.name} · ${res.found_total}/${res.total}`);
+        }
+      } catch (_) {
+        /* портал выхода — находка уже была */
+      }
+      const toggle = await api("POST", "/api/portal/toggle");
+      state.portal_dimension = Boolean(toggle.portal_dimension);
+      applyPortalDimension(state.portal_dimension);
+      renderPortalToggle();
+      playPortalFlash();
+      toast(
+        state.portal_dimension
+          ? "🌀 Другое измерение..."
+          : "🌍 С возвращением домой!",
+      );
+    } catch (_) {
+      toast("Портал не сработал");
+    }
+  }
+
   async function claimEasterEgg(egg) {
+    if (egg?.id === PORTAL_EGG_ID || egg?.action === "portal") {
+      await handlePortalEggClick(egg);
+      return;
+    }
     if (!egg?.id) return;
     try {
       const res = await api("POST", `/api/easter-egg/claim?egg_id=${egg.id}`);
@@ -1708,6 +1794,8 @@
       if (globalStats) state.global_stats = globalStats;
       updateHeader();
       render();
+      applyPortalDimension(state.portal_dimension);
+      renderPortalToggle();
 
       if (fromMaturity && prevGrowingIds) {
         const newPlants = state.ready_plants.filter((p) => !prevReadyIds.has(p.id));
@@ -1791,7 +1879,9 @@
 
       if (ref && ref !== state.user.ref_code) setTab("plot");
       else render();
+      applyPortalDimension(state.portal_dimension);
       await resolveEasterEggDisplay();
+      renderPortalToggle();
       ensureTickLoop();
       startAdPlane();
     } catch (e) {

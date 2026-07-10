@@ -119,6 +119,7 @@ _MIGRATIONS = (
     "ALTER TABLE users ADD COLUMN water_can_level INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE plants ADD COLUMN plot_slot INTEGER NOT NULL DEFAULT 1",
     "ALTER TABLE plants ADD COLUMN plant_variant_id INTEGER",
+    "ALTER TABLE users ADD COLUMN portal_dimension INTEGER NOT NULL DEFAULT 0",
 )
 
 _EXTRA_TABLES = """

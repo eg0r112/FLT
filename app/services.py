@@ -114,7 +114,7 @@ async def get_user_by_telegram(telegram_id: int) -> dict | None:
     db = await get_db()
     cur = await db.execute(
         "SELECT id, telegram_id, username, display_name, referrer_id, coins, "
-        "extra_plots, speed_level, water_can_level, created_at "
+        "extra_plots, speed_level, water_can_level, portal_dimension, created_at "
         "FROM users WHERE telegram_id = ?",
         (telegram_id,),
     )
@@ -126,7 +126,7 @@ async def get_user_by_id(user_id: int) -> dict | None:
     db = await get_db()
     cur = await db.execute(
         "SELECT id, telegram_id, username, display_name, referrer_id, coins, "
-        "extra_plots, speed_level, water_can_level, created_at "
+        "extra_plots, speed_level, water_can_level, portal_dimension, created_at "
         "FROM users WHERE id = ?",
         (user_id,),
     )
@@ -696,3 +696,24 @@ async def admin_grant_all_plants(telegram_id: int) -> tuple[int, str | None]:
         )
     await db.commit()
     return len(ALL_VARIANT_IDS), None
+
+
+async def toggle_portal_dimension(user_id: int) -> bool:
+    db = await get_db()
+    cur = await db.execute(
+        "SELECT portal_dimension FROM users WHERE id = ?",
+        (user_id,),
+    )
+    row = await cur.fetchone()
+    if not row:
+        return False
+    current = int(
+        row["portal_dimension"] if isinstance(row, dict) else row[0] or 0
+    )
+    new_val = 0 if current else 1
+    await db.execute(
+        "UPDATE users SET portal_dimension = ? WHERE id = ?",
+        (new_val, user_id),
+    )
+    await db.commit()
+    return bool(new_val)

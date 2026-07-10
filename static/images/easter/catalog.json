@@ -246,7 +246,8 @@
     "image": "/static/images/easter/27.png",
     "left": 53.9,
     "top": 59.8,
-    "size": 64
+    "size": 64,
+    "action": "portal"
   },
   {
     "id": 28,
