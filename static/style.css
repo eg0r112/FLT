@@ -1112,34 +1112,32 @@ body:not(.world-portal) .ad-ufo {
 .seed-card--legendary { border-color: var(--rarity-legendary); }
 
 .seed-card__tag--space {
-  display: flex;
+  display: inline-flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  width: 100%;
-  max-width: 100%;
-  padding: 3px 6px 4px;
+  width: auto;
+  max-width: none;
+  padding: 2px 6px 3px;
   background: linear-gradient(135deg, #1b4332 0%, #39ff14 55%, #74c0fc 100%);
   color: #0d0221;
   border: 1px solid rgba(57, 255, 20, 0.55);
   letter-spacing: 0.02em;
-  white-space: normal;
+  white-space: nowrap;
   text-align: center;
 }
 
 .seed-card__tag-rarity {
   display: block;
-  width: 100%;
   line-height: 1.15;
   text-align: center;
 }
 
 .seed-card__tag-dim {
   display: block;
-  width: 100%;
   font-size: 0.52rem;
   font-weight: 800;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   line-height: 1.1;
   text-align: center;
   opacity: 0.92;
