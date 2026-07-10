@@ -24,6 +24,7 @@
   let adsInbox = null;
   let adsMessages = [];
   let adsBlocked = false;
+  let portalExitedThisSession = false;
 
   const TABS = ["garden", "plot", "friends", "shop", "profile"];
   const PORTAL_EGG_ID = 27;
